@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar } from 'lucide-react';
+import { Calendar, MapPin } from 'lucide-react';
 import { Event } from '@/types';
 
 interface EventsProps {
@@ -26,9 +26,9 @@ export default function Events({ events }: EventsProps) {
             <div key={event.id} className="card">
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{event.title}</div>
               <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>{event.description}</div>
-              <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)' }}>
-                <span>📅 {event.startDate} - {event.endDate}</span>
-                <span>📍 {event.location}</span>
+              <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /> {event.startDate} - {event.endDate}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> {event.location}</span>
               </div>
               <div style={{ marginTop: 10 }}>
                 <span className={`status-badge ${event.status}`}>{event.status}</span>

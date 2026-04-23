@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu } from 'lucide-react';
+import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu, MapPin, UserPlus, Clock } from 'lucide-react';
 import { User, Event, Announcement, Document, Branch } from '@/types';
 
 export default function AdminDashboard() {
@@ -378,9 +378,9 @@ export default function AdminDashboard() {
                     <button className="del-btn" style={{ position: 'absolute', top: 12, right: 12 }} onClick={() => setEvents(events.filter(e => e.id !== event.id))}><Trash2 size={14} /></button>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{event.title}</div>
                     <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>{event.description}</div>
-                    <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)' }}>
-                      <span>📅 {event.startDate} - {event.endDate}</span>
-                      <span>📍 {event.location}</span>
+                    <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)', alignItems: 'center' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CalendarIcon size={12} /> {event.startDate} - {event.endDate}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> {event.location}</span>
                     </div>
                     <div style={{ marginTop: 10 }}><span className={`status-badge ${event.status}`}>{event.status}</span></div>
                   </div>
@@ -512,9 +512,9 @@ export default function AdminDashboard() {
                     <button className="del-btn" style={{ position: 'absolute', top: 12, right: 12 }} onClick={() => setBranches(branches.filter(b => b.id !== branch.id))}><Trash2 size={14} /></button>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{branch.name}</div>
                     <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>{branch.region}</div>
-                    <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)' }}>
-                      <span>👥 {branch.memberCount} members</span>
-                      <span>📅 Created {branch.createdAt}</span>
+                    <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)', alignItems: 'center' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><UserPlus size={12} /> {branch.memberCount} members</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} /> Created {branch.createdAt}</span>
                     </div>
                   </div>
                 ))}
