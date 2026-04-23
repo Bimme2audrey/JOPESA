@@ -79,7 +79,7 @@ export default function Home() {
   return (
     <>
       {showSplash && <SplashScreen />}
-      <Header />
+      <Header onShowAbout={() => setActiveTab('about')} />
       <main>
         {activeTab === 'finder' && <BatchFinder onPrefillAlumni={handlePrefillAlumni} />}
         {activeTab === 'alumni' && (

@@ -13,9 +13,6 @@ export default function About({ alumni }: AboutProps) {
   return (
     <section className="sec active" id="sec-about">
       <div className="about-hero">
-        <div className="about-logo" style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid #C8960C', background: '#002B6B', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F0C040', fontSize: 24, fontWeight: 800 }}>
-          JC
-        </div>
         <div className="about-name">JOPESA</div>
         <div className="about-school">
           JOPACC Ex-Students Association<br />
