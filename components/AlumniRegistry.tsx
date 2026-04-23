@@ -3,22 +3,24 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, Search, Trash2, GraduationCap } from 'lucide-react';
 import { getBatchInfo, maxClass, updateYearHint, CLASS_NAMES, SY } from '@/lib/batchUtils';
-import { Alumni } from '@/types';
+import { Alumni, Branch } from '@/types';
 
 interface AlumniRegistryProps {
   alumni: Alumni[];
+  branches: Branch[];
   onAlumniChange: (alumni: Alumni[]) => void;
   onShowToast: (message: string, type?: string) => void;
   prefillData?: { year: string; classNum: number | '' };
 }
 
-export default function AlumniRegistry({ alumni, onAlumniChange, onShowToast, prefillData }: AlumniRegistryProps) {
+export default function AlumniRegistry({ alumni, branches, onAlumniChange, onShowToast, prefillData }: AlumniRegistryProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [showRegPanel, setShowRegPanel] = useState(true);
   const [regName, setRegName] = useState('');
   const [regYear, setRegYear] = useState('');
   const [regClass, setRegClass] = useState<number | ''>('');
+  const [regBranchId, setRegBranchId] = useState('');
   const [regError, setRegError] = useState('');
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export default function AlumniRegistry({ alumni, onAlumniChange, onShowToast, pr
 
   const registerAlumni = () => {
     setRegError('');
-    
+
     const name = regName.trim();
     const year = parseInt(regYear);
     const cVal = parseInt(String(regClass));
@@ -42,6 +44,7 @@ export default function AlumniRegistry({ alumni, onAlumniChange, onShowToast, pr
     if (year < SY) return setRegError(`Year ${year} is before JOPACC was founded (2007/2008).`);
     if (year > CY) return setRegError(`Year ${year}/${year+1} is in the future.`);
     if (!cVal) return setRegError('Please select a class.');
+    if (!regBranchId) return setRegError('Please select a branch.');
 
     const mx = maxClass(year);
     if (cVal > mx) {
@@ -62,6 +65,7 @@ export default function AlumniRegistry({ alumni, onAlumniChange, onShowToast, pr
       acadYear: info.acadYear,
       f1AcadYear: info.f1AcadYear,
       gradYear: info.gradYear,
+      branchId: regBranchId || undefined,
       date: new Date().toLocaleDateString(),
     };
 
@@ -69,6 +73,7 @@ export default function AlumniRegistry({ alumni, onAlumniChange, onShowToast, pr
     setRegName('');
     setRegYear('');
     setRegClass('');
+    setRegBranchId('');
     setShowRegPanel(false);
     onShowToast(`${name} registered as Batch ${info.batch}!`, 'green');
   };
@@ -99,13 +104,22 @@ export default function AlumniRegistry({ alumni, onAlumniChange, onShowToast, pr
         <div className="stat-cell"><div className="stat-num">{batches.length}</div><div className="stat-lbl">Batches</div></div>
         <div className="stat-cell"><div className="stat-num">{batches.length ? batches[0] : '—'}</div><div className="stat-lbl">Latest</div></div>
       </div>
+      <div className="search-wrap">
+        <Search className="search-ico" size={16} />
+        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name…" />
+      </div>
+      <div className="filter-row">
+        <div className={`f-chip ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All</div>
+        {batches.map(b => (
+          <div key={b} className={`f-chip ${String(b) === String(activeFilter) ? 'active' : ''}`} onClick={() => setActiveFilter(String(b))}>Batch {b}</div>
+        ))}
+      </div>
       <div className="card">
         <div className="reg-header">
           <div>
             <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)' }}>Alumni Registry</div>
             <div style={{ fontSize: 12, color: 'var(--gray)' }}>Register and find ex-students</div>
           </div>
-          <button className="btn btn-gold btn-sm" onClick={() => setShowRegPanel(!showRegPanel)}>+ Register</button>
         </div>
         {showRegPanel && (
           <div className="reg-panel open">
@@ -133,6 +147,17 @@ export default function AlumniRegistry({ alumni, onAlumniChange, onShowToast, pr
                 </select>
               </div>
             </div>
+            <div className="fg">
+              <label>Branch *</label>
+              <div className="sel-wrap">
+                <select value={regBranchId} onChange={(e) => setRegBranchId(e.target.value)}>
+                  <option value="">— Select branch —</option>
+                  {branches.map(branch => (
+                    <option key={branch.id} value={branch.id}>{branch.name} ({branch.region})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <button className="btn btn-navy" onClick={registerAlumni}>Register →</button>
             {regError && (
               <div className="msg-box msg-err show">
@@ -143,20 +168,10 @@ export default function AlumniRegistry({ alumni, onAlumniChange, onShowToast, pr
           </div>
         )}
       </div>
-      <div className="search-wrap">
-        <Search className="search-ico" size={16} />
-        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name…" />
-      </div>
-      <div className="filter-row">
-        <div className={`f-chip ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All</div>
-        {batches.map(b => (
-          <div key={b} className={`f-chip ${String(b) === String(activeFilter) ? 'active' : ''}`} onClick={() => setActiveFilter(String(b))}>Batch {b}</div>
-        ))}
-      </div>
       <div id="alumniList">
         {!filteredAlumni.length ? (
           <div className="empty-state">
-            <div className="empty-icon">{alumni.length ? <Search size={40} /> : <GraduationCap size={40} />}</div>
+            <div className="empty-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>{alumni.length ? <Search size={40} /> : <GraduationCap size={40} />}</div>
             <div className="empty-text">{alumni.length ? 'No results found.' : 'No alumni yet. Be the first to register!'}</div>
           </div>
         ) : (

@@ -2,32 +2,37 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu, MapPin, UserPlus, Clock } from 'lucide-react';
-import { User, Event, Announcement, Document, Branch } from '@/types';
+import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu, MapPin, UserPlus, Clock, Image as ImageIcon, ExternalLink } from 'lucide-react';
+import { User, Event, Announcement, Document, Branch, Photo } from '@/types';
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeSection, setActiveSection] = useState<'overview' | 'events' | 'announcements' | 'documents' | 'branches'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'events' | 'announcements' | 'documents' | 'branches' | 'photos'>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [alumni, setAlumni] = useState<any[]>([]);
 
   // Event management
   const [showEventForm, setShowEventForm] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventData, setEventData] = useState({
     title: '',
     description: '',
     startDate: '',
     endDate: '',
     location: '',
-    status: 'upcoming' as 'upcoming' | 'past'
+    status: 'upcoming' as 'upcoming' | 'past',
+    externalGalleryUrl: ''
   });
 
   // Announcement management
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
   const [announcementData, setAnnouncementData] = useState({
     title: '',
     content: '',
@@ -46,11 +51,17 @@ export default function AdminDashboard() {
 
   // Branch management
   const [showBranchForm, setShowBranchForm] = useState(false);
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [branchData, setBranchData] = useState({
     name: '',
     region: '',
     leaderId: ''
   });
+
+  // Photo management
+  const [showPhotoForm, setShowPhotoForm] = useState(false);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState('');
 
   useEffect(() => {
     const auth = localStorage.getItem('jopesa_admin_auth');
@@ -69,6 +80,12 @@ export default function AdminDashboard() {
     
     const savedBranches = localStorage.getItem('jopesa_branches');
     if (savedBranches) setBranches(JSON.parse(savedBranches));
+
+    const savedPhotos = localStorage.getItem('jopesa_photos');
+    if (savedPhotos) setPhotos(JSON.parse(savedPhotos));
+
+    const savedAlumni = localStorage.getItem('jopesa_alumni');
+    if (savedAlumni) setAlumni(JSON.parse(savedAlumni));
   }, [router]);
 
   useEffect(() => {
@@ -87,9 +104,36 @@ export default function AdminDashboard() {
     localStorage.setItem('jopesa_branches', JSON.stringify(branches));
   }, [branches]);
 
+  useEffect(() => {
+    localStorage.setItem('jopesa_photos', JSON.stringify(photos));
+  }, [photos]);
+
   const handleLogout = () => {
     localStorage.removeItem('jopesa_admin_auth');
     router.push('/admin');
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleEditEvent = (event: Event) => {
+    setEditingEventId(event.id);
+    setEventData({
+      title: event.title,
+      description: event.description,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      location: event.location,
+      status: event.status,
+      externalGalleryUrl: event.externalGalleryUrl || ''
+    });
+    setShowEventForm(true);
   };
 
   const handleCreateEvent = () => {
@@ -97,14 +141,59 @@ export default function AdminDashboard() {
       alert('Please fill in all required fields');
       return;
     }
-    const newEvent: Event = {
-      id: Date.now().toString(),
-      ...eventData,
-      createdAt: new Date().toLocaleDateString()
-    };
-    setEvents([newEvent, ...events]);
-    setEventData({ title: '', description: '', startDate: '', endDate: '', location: '', status: 'upcoming' });
+
+    if (editingEventId) {
+      setEvents(events.map(e => e.id === editingEventId ? { ...e, ...eventData, externalGalleryUrl: eventData.externalGalleryUrl || undefined } : e));
+      setEditingEventId(null);
+    } else {
+      const newEvent: Event = {
+        id: Date.now().toString(),
+        ...eventData,
+        externalGalleryUrl: eventData.externalGalleryUrl || undefined,
+        createdAt: new Date().toLocaleDateString()
+      };
+      setEvents([newEvent, ...events]);
+    }
+    setEventData({ title: '', description: '', startDate: '', endDate: '', location: '', status: 'upcoming', externalGalleryUrl: '' });
     setShowEventForm(false);
+  };
+
+  const handleUploadPhotos = async () => {
+    if (!selectedEventId) {
+      alert('Please select an event');
+      return;
+    }
+    if (photoFiles.length === 0) {
+      alert('Please select at least one photo');
+      return;
+    }
+
+    const newPhotos: Photo[] = [];
+    for (const file of photoFiles) {
+      const base64 = await fileToBase64(file);
+      newPhotos.push({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        eventId: selectedEventId,
+        url: base64,
+        uploadedAt: new Date().toLocaleDateString()
+      });
+    }
+
+    setPhotos([...newPhotos, ...photos]);
+    setPhotoFiles([]);
+    setSelectedEventId('');
+    setShowPhotoForm(false);
+  };
+
+  const handleEditAnnouncement = (announcement: Announcement) => {
+    setEditingAnnouncementId(announcement.id);
+    setAnnouncementData({
+      title: announcement.title,
+      content: announcement.content,
+      priority: announcement.priority,
+      createdBy: announcement.createdBy
+    });
+    setShowAnnouncementForm(true);
   };
 
   const handleCreateAnnouncement = () => {
@@ -112,12 +201,18 @@ export default function AdminDashboard() {
       alert('Please fill in all required fields');
       return;
     }
-    const newAnnouncement: Announcement = {
-      id: Date.now().toString(),
-      ...announcementData,
-      createdAt: new Date().toLocaleDateString()
-    };
-    setAnnouncements([newAnnouncement, ...announcements]);
+
+    if (editingAnnouncementId) {
+      setAnnouncements(announcements.map(a => a.id === editingAnnouncementId ? { ...a, ...announcementData } : a));
+      setEditingAnnouncementId(null);
+    } else {
+      const newAnnouncement: Announcement = {
+        id: Date.now().toString(),
+        ...announcementData,
+        createdAt: new Date().toLocaleDateString()
+      };
+      setAnnouncements([newAnnouncement, ...announcements]);
+    }
     setAnnouncementData({ title: '', content: '', priority: 'normal', createdBy: 'Admin' });
     setShowAnnouncementForm(false);
   };
@@ -148,18 +243,34 @@ export default function AdminDashboard() {
     reader.readAsDataURL(documentFile);
   };
 
+  const handleEditBranch = (branch: Branch) => {
+    setEditingBranchId(branch.id);
+    setBranchData({
+      name: branch.name,
+      region: branch.region,
+      leaderId: branch.leaderId || ''
+    });
+    setShowBranchForm(true);
+  };
+
   const handleCreateBranch = () => {
     if (!branchData.name || !branchData.region) {
       alert('Please fill in all required fields');
       return;
     }
-    const newBranch: Branch = {
-      id: Date.now().toString(),
-      ...branchData,
-      memberCount: 0,
-      createdAt: new Date().toLocaleDateString()
-    };
-    setBranches([newBranch, ...branches]);
+
+    if (editingBranchId) {
+      setBranches(branches.map(b => b.id === editingBranchId ? { ...b, ...branchData } : b));
+      setEditingBranchId(null);
+    } else {
+      const newBranch: Branch = {
+        id: Date.now().toString(),
+        ...branchData,
+        memberCount: 0,
+        createdAt: new Date().toLocaleDateString()
+      };
+      setBranches([newBranch, ...branches]);
+    }
     setBranchData({ name: '', region: '', leaderId: '' });
     setShowBranchForm(false);
   };
@@ -210,34 +321,40 @@ export default function AdminDashboard() {
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
           <button
-            onClick={() => setActiveSection('overview')}
+            onClick={() => { setActiveSection('overview'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'overview' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'overview' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <Shield size={18} /> Overview
           </button>
           <button
-            onClick={() => setActiveSection('events')}
+            onClick={() => { setActiveSection('events'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'events' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'events' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <Calendar size={18} /> Events
           </button>
           <button
-            onClick={() => setActiveSection('announcements')}
+            onClick={() => { setActiveSection('announcements'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'announcements' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'announcements' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <Megaphone size={18} /> Announcements
           </button>
           <button
-            onClick={() => setActiveSection('documents')}
+            onClick={() => { setActiveSection('documents'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'documents' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'documents' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <FileText size={18} /> Documents
           </button>
           <button
-            onClick={() => setActiveSection('branches')}
+            onClick={() => { setActiveSection('branches'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'branches' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'branches' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <Users size={18} /> Branches
+          </button>
+          <button
+            onClick={() => { setActiveSection('photos'); setSidebarOpen(false); }}
+            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'photos' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'photos' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+          >
+            <ImageIcon size={18} /> Photos
           </button>
         </nav>
 
@@ -347,7 +464,7 @@ export default function AdminDashboard() {
                 <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)' }}>Manage Events</div>
                 <div style={{ fontSize: 12, color: 'var(--gray)' }}>Create and edit events</div>
               </div>
-              <button className="btn btn-gold btn-sm" onClick={() => setShowEventForm(!showEventForm)}>
+              <button className="btn btn-gold btn-sm" onClick={() => { setShowEventForm(!showEventForm); setEditingEventId(null); }}>
                 {showEventForm ? <X size={14} /> : <Plus size={14} />} {showEventForm ? 'Cancel' : 'New Event'}
               </button>
             </div>
@@ -361,8 +478,9 @@ export default function AdminDashboard() {
                   <div className="fg"><label>End Date *</label><input type="date" value={eventData.endDate} onChange={(e) => setEventData({ ...eventData, endDate: e.target.value })} /></div>
                 </div>
                 <div className="fg"><label>Description</label><input type="text" value={eventData.description} onChange={(e) => setEventData({ ...eventData, description: e.target.value })} placeholder="Event details..." /></div>
+                <div className="fg"><label>External Gallery URL (optional)</label><input type="url" value={eventData.externalGalleryUrl} onChange={(e) => setEventData({ ...eventData, externalGalleryUrl: e.target.value })} placeholder="e.g. Google Drive folder link" style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Link to external photo gallery (Google Drive, Dropbox, etc.)</div></div>
                 <div className="fg"><label>Status</label><div className="sel-wrap"><select value={eventData.status} onChange={(e) => setEventData({ ...eventData, status: e.target.value as 'upcoming' | 'past' })}><option value="upcoming">Upcoming</option><option value="past">Past</option></select></div></div>
-                <button className="btn btn-navy" onClick={handleCreateEvent}>Create Event →</button>
+                <button className="btn btn-navy" onClick={handleCreateEvent}>{editingEventId ? 'Update Event →' : 'Create Event →'}</button>
               </div>
             )}
             {events.length === 0 ? (
@@ -375,7 +493,15 @@ export default function AdminDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginTop: '16px' }}>
                 {events.map(event => (
                   <div key={event.id} className="card" style={{ position: 'relative' }}>
-                    <button className="del-btn" style={{ position: 'absolute', top: 12, right: 12 }} onClick={() => setEvents(events.filter(e => e.id !== event.id))}><Trash2 size={14} /></button>
+                    <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={() => handleEditEvent(event)}
+                        style={{ background: 'var(--off)', color: 'var(--navy)', border: '1px solid var(--lgray)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600 }}
+                      >
+                        Edit
+                      </button>
+                      <button className="del-btn" onClick={() => setEvents(events.filter(e => e.id !== event.id))}><Trash2 size={14} /></button>
+                    </div>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{event.title}</div>
                     <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>{event.description}</div>
                     <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)', alignItems: 'center' }}>
@@ -383,6 +509,25 @@ export default function AdminDashboard() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> {event.location}</span>
                     </div>
                     <div style={{ marginTop: 10 }}><span className={`status-badge ${event.status}`}>{event.status}</span></div>
+                    {event.externalGalleryUrl && (
+                      <a
+                        href={event.externalGalleryUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          marginTop: 8,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '11px',
+                          color: 'var(--navy)',
+                          textDecoration: 'none',
+                          fontWeight: 500
+                        }}
+                      >
+                        <ExternalLink size={10} /> External Gallery
+                      </a>
+                    )}
                   </div>
                 ))}
               </div>
@@ -397,7 +542,7 @@ export default function AdminDashboard() {
                 <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)' }}>Manage Announcements</div>
                 <div style={{ fontSize: 12, color: 'var(--gray)' }}>Create and edit announcements</div>
               </div>
-              <button className="btn btn-gold btn-sm" onClick={() => setShowAnnouncementForm(!showAnnouncementForm)}>
+              <button className="btn btn-gold btn-sm" onClick={() => { setShowAnnouncementForm(!showAnnouncementForm); setEditingAnnouncementId(null); }}>
                 {showAnnouncementForm ? <X size={14} /> : <Plus size={14} />} {showAnnouncementForm ? 'Cancel' : 'New Post'}
               </button>
             </div>
@@ -409,7 +554,7 @@ export default function AdminDashboard() {
                   <div className="fg"><label>Priority</label><div className="sel-wrap"><select value={announcementData.priority} onChange={(e) => setAnnouncementData({ ...announcementData, priority: e.target.value as 'normal' | 'urgent' })}><option value="normal">Normal</option><option value="urgent">Urgent</option></select></div></div>
                 </div>
                 <div className="fg"><label>Content *</label><textarea value={announcementData.content} onChange={(e) => setAnnouncementData({ ...announcementData, content: e.target.value })} placeholder="Announcement details..." style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit', minHeight: '100px', resize: 'vertical' }} /></div>
-                <button className="btn btn-navy" onClick={handleCreateAnnouncement}>Post Announcement →</button>
+                <button className="btn btn-navy" onClick={handleCreateAnnouncement}>{editingAnnouncementId ? 'Update Announcement →' : 'Post Announcement →'}</button>
               </div>
             )}
             {announcements.length === 0 ? (
@@ -421,8 +566,16 @@ export default function AdminDashboard() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', marginTop: '16px' }}>
                 {announcements.map(announcement => (
-                  <div key={announcement.id} className="card" style={{ borderLeft: announcement.priority === 'urgent' ? '4px solid var(--err)' : '4px solid var(--gold)', position: 'relative' }}>
-                    <button className="del-btn" style={{ position: 'absolute', top: 12, right: 12 }} onClick={() => setAnnouncements(announcements.filter(a => a.id !== announcement.id))}><Trash2 size={14} /></button>
+                  <div key={announcement.id} className="card" style={{ borderLeft: announcement.priority === 'urgent' ? '4px solid var(--err)' : '4px solid var(--gold)', position: 'relative', marginTop: 10 }}>
+                    <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={() => handleEditAnnouncement(announcement)}
+                        style={{ background: 'var(--off)', color: 'var(--navy)', border: '1px solid var(--lgray)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600 }}
+                      >
+                        Edit
+                      </button>
+                      <button className="del-btn" onClick={() => setAnnouncements(announcements.filter(a => a.id !== announcement.id))}><Trash2 size={14} /></button>
+                    </div>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{announcement.title}</div>
                     <div style={{ fontSize: 14, color: 'var(--dark)', lineHeight: 1.5, marginBottom: 8 }}>{announcement.content}</div>
                     <div style={{ fontSize: 12, color: 'var(--gray)' }}>{announcement.createdAt} · by {announcement.createdBy}</div>
@@ -484,7 +637,7 @@ export default function AdminDashboard() {
                 <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)' }}>Manage Branches</div>
                 <div style={{ fontSize: 12, color: 'var(--gray)' }}>Create and manage regional chapters</div>
               </div>
-              <button className="btn btn-gold btn-sm" onClick={() => setShowBranchForm(!showBranchForm)}>
+              <button className="btn btn-gold btn-sm" onClick={() => { setShowBranchForm(!showBranchForm); setEditingBranchId(null); }}>
                 {showBranchForm ? <X size={14} /> : <Plus size={14} />} {showBranchForm ? 'Cancel' : 'New Branch'}
               </button>
             </div>
@@ -496,7 +649,7 @@ export default function AdminDashboard() {
                   <div className="fg"><label>Region *</label><input type="text" value={branchData.region} onChange={(e) => setBranchData({ ...branchData, region: e.target.value })} placeholder="e.g. Littoral Region" /></div>
                 </div>
                 <div className="fg"><label>Leader ID (optional)</label><input type="text" value={branchData.leaderId} onChange={(e) => setBranchData({ ...branchData, leaderId: e.target.value })} placeholder="Enter user ID" /></div>
-                <button className="btn btn-navy" onClick={handleCreateBranch}>Create Branch →</button>
+                <button className="btn btn-navy" onClick={handleCreateBranch}>{editingBranchId ? 'Update Branch →' : 'Create Branch →'}</button>
               </div>
             )}
             {branches.length === 0 ? (
@@ -507,17 +660,96 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', marginTop: '16px' }}>
-                {branches.map(branch => (
-                  <div key={branch.id} className="card" style={{ position: 'relative' }}>
-                    <button className="del-btn" style={{ position: 'absolute', top: 12, right: 12 }} onClick={() => setBranches(branches.filter(b => b.id !== branch.id))}><Trash2 size={14} /></button>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{branch.name}</div>
-                    <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>{branch.region}</div>
-                    <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)', alignItems: 'center' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><UserPlus size={12} /> {branch.memberCount} members</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} /> Created {branch.createdAt}</span>
+                {branches.map(branch => {
+                  const memberCount = alumni.filter(a => a.branchId === branch.id).length;
+                  return (
+                    <div key={branch.id} className="card" style={{ position: 'relative' }}>
+                      <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => handleEditBranch(branch)}
+                          style={{ background: 'var(--off)', color: 'var(--navy)', border: '1px solid var(--lgray)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600 }}
+                        >
+                          Edit
+                        </button>
+                        <button className="del-btn" onClick={() => setBranches(branches.filter(b => b.id !== branch.id))}><Trash2 size={14} /></button>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{branch.name}</div>
+                      <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>{branch.region}</div>
+                      <div style={{ display: 'flex', gap: 15, fontSize: 12, color: 'var(--gray)', alignItems: 'center' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><UserPlus size={12} /> {memberCount} member{memberCount !== 1 ? 's' : ''}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} /> Created {branch.createdAt}</span>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'photos' && (
+          <div className="card">
+            <div className="reg-header">
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)' }}>Manage Event Photos</div>
+                <div style={{ fontSize: 12, color: 'var(--gray)' }}>Upload photos for events</div>
+              </div>
+              <button className="btn btn-gold btn-sm" onClick={() => setShowPhotoForm(!showPhotoForm)}>
+                {showPhotoForm ? <X size={14} /> : <Plus size={14} />} {showPhotoForm ? 'Cancel' : 'Upload Photos'}
+              </button>
+            </div>
+            {showPhotoForm && (
+              <div className="reg-panel open">
+                <div className="divider"></div>
+                <div className="fg">
+                  <label>Select Event *</label>
+                  <div className="sel-wrap">
+                    <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
+                      <option value="">— Select an event —</option>
+                      {events.map(event => (
+                        <option key={event.id} value={event.id}>{event.title}</option>
+                      ))}
+                    </select>
                   </div>
-                ))}
+                </div>
+                <div className="fg">
+                  <label>Photos *</label>
+                  <input type="file" multiple accept="image/*" onChange={(e) => setPhotoFiles(Array.from(e.target.files || []))} style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} />
+                  <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Accepted: JPG, PNG, GIF, WebP</div>
+                </div>
+                <button className="btn btn-navy" onClick={handleUploadPhotos}>Upload Photos →</button>
+              </div>
+            )}
+            {photos.length === 0 ? (
+              <div className="empty-state" style={{ textAlign: 'center', padding: '48px 24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '16px' }}><ImageIcon size={48} style={{ color: 'var(--navy)' }} /></div>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--navy)', marginBottom: '8px' }}>No photos yet</div>
+                <div style={{ fontSize: '14px', color: 'var(--gray)' }}>Upload photos for events to get started</div>
+              </div>
+            ) : (
+              <div style={{ marginTop: '16px' }}>
+                {events.map(event => {
+                  const eventPhotos = photos.filter(p => p.eventId === event.id);
+                  if (eventPhotos.length === 0) return null;
+                  return (
+                    <div key={event.id} style={{ marginBottom: '24px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: '12px' }}>{event.title} ({eventPhotos.length} photos)</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+                        {eventPhotos.map(photo => (
+                          <div key={photo.id} style={{ position: 'relative' }}>
+                            <img src={photo.url} alt="Event photo" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px' }} />
+                            <button 
+                              onClick={() => setPhotos(photos.filter(p => p.id !== photo.id))}
+                              style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

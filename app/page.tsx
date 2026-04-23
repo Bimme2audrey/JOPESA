@@ -83,8 +83,9 @@ export default function Home() {
       <main>
         {activeTab === 'finder' && <BatchFinder onPrefillAlumni={handlePrefillAlumni} />}
         {activeTab === 'alumni' && (
-          <AlumniRegistry 
-            alumni={alumni} 
+          <AlumniRegistry
+            alumni={alumni}
+            branches={branches}
             onAlumniChange={setAlumni}
             onShowToast={showToast}
             prefillData={prefillData}
@@ -93,7 +94,7 @@ export default function Home() {
         {activeTab === 'events' && <Events events={events} />}
         {activeTab === 'announcements' && <Announcements announcements={announcements} />}
         {activeTab === 'documents' && <Documents documents={documents} />}
-        {activeTab === 'branches' && <Branches branches={branches} />}
+        {activeTab === 'branches' && <Branches branches={branches} alumni={alumni} />}
         {activeTab === 'about' && <About alumni={alumni} />}
       </main>
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />

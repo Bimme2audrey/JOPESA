@@ -8,8 +8,8 @@ export interface Alumni {
   acadYear: string;
   f1AcadYear: string;
   gradYear: string;
-  date: string;
   branchId?: string;
+  date: string;
 }
 
 export interface BatchInfo {
@@ -38,8 +38,16 @@ export interface Event {
   endDate: string;
   location: string;
   status: 'upcoming' | 'past';
-  gallery?: string[];
+  externalGalleryUrl?: string;
   createdAt: string;
+}
+
+export interface Photo {
+  id: string;
+  eventId: string;
+  url: string;
+  externalUrl?: string;
+  uploadedAt: string;
 }
 
 export interface Announcement {

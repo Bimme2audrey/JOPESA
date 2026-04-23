@@ -1,13 +1,14 @@
 'use client';
 
 import { Building2, MapPin, Users } from 'lucide-react';
-import { Branch } from '@/types';
+import { Branch, Alumni } from '@/types';
 
 interface BranchesProps {
   branches: Branch[];
+  alumni: Alumni[];
 }
 
-export default function Branches({ branches }: BranchesProps) {
+export default function Branches({ branches, alumni }: BranchesProps) {
   return (
     <div className="sec active">
       <div className="pg-title">JOPESA Chapters</div>
@@ -22,23 +23,26 @@ export default function Branches({ branches }: BranchesProps) {
           <div style={{ fontSize: '14px', color: 'var(--gray)' }}>Chapters will be added by the administrator</div>
         </div>
       ) : (
-        branches.map((branch) => (
-          <div key={branch.id} className="card" style={{ position: 'relative' }}>
-            <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--navy)', marginBottom: 8 }}>{branch.name}</div>
-            <div style={{ fontSize: 14, color: 'var(--gray)', marginBottom: 12 }}>{branch.region}</div>
-            <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--gray)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Users size={14} /> {branch.memberCount} members
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <MapPin size={14} /> {branch.region}
-              </span>
+        branches.map((branch) => {
+          const memberCount = alumni.filter(a => a.branchId === branch.id).length;
+          return (
+            <div key={branch.id} className="card" style={{ position: 'relative' }}>
+              <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--navy)', marginBottom: 8 }}>{branch.name}</div>
+              <div style={{ fontSize: 14, color: 'var(--gray)', marginBottom: 12 }}>{branch.region}</div>
+              <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--gray)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Users size={14} /> {memberCount} member{memberCount !== 1 ? 's' : ''}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <MapPin size={14} /> {branch.region}
+                </span>
+              </div>
+              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--lgray)' }}>
+                Established {branch.createdAt}
+              </div>
             </div>
-            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--lgray)' }}>
-              Established {branch.createdAt}
-            </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );
