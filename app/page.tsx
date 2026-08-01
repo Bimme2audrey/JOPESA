@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Alumni, Event, Announcement, Document, Branch } from '@/types';
 import SplashScreen from '@/components/SplashScreen';
 import Header from '@/components/Header';
@@ -22,8 +22,15 @@ export default function Home() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [toast, setToast] = useState({ show: false, message: '', type: '' });
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'warning' | 'error' }>({ show: false, message: '', type: 'success' });
   const [prefillData, setPrefillData] = useState({ year: '', classNum: '' as number | '' });
+
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+  const showToast = useCallback((message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 2800);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('jopesa_alumni');
@@ -46,6 +53,71 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/branch?skip=0&take=100`, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Branch endpoint returned ${response.status}`);
+        }
+
+        const json = await response.json();
+        const branchData: Branch[] = Array.isArray(json?.data) ? json.data : json;
+
+        if (Array.isArray(branchData) && branchData.length) {
+          setBranches(branchData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch branches from backend:', error);
+        showToast('Unable to load branches from backend', 'error');
+      }
+    };
+
+    const fetchDocuments = async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/documents?skip=0&take=100`, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Documents endpoint returned ${response.status}`);
+        }
+
+        const json = await response.json();
+        const documentData = Array.isArray(json?.data)
+          ? json.data.map((doc: any) => ({
+              ...doc,
+              type: (doc.fileType || doc.type || 'OTHER').toLowerCase(),
+              uploadedAt: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '',
+              uploadedBy: doc.category || 'Admin',
+              category: doc.category,
+              fileType: doc.fileType,
+              fileSize: doc.fileSize,
+              tags: doc.tags || [],
+            }))
+          : Array.isArray(json)
+            ? json.map((doc: any) => ({
+                ...doc,
+                type: (doc.fileType || doc.type || 'OTHER').toLowerCase(),
+                uploadedAt: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : '',
+                uploadedBy: doc.category || 'Admin',
+                category: doc.category,
+                fileType: doc.fileType,
+                fileSize: doc.fileSize,
+                tags: doc.tags || [],
+              }))
+            : [];
+
+        if (documentData.length) {
+          setDocuments(documentData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch documents from backend:', error);
+        showToast('Unable to load documents from backend', 'error');
+      }
+    };
+
+    fetchBranches();
+    fetchDocuments();
+  }, [apiBaseUrl, showToast]);
+
+  useEffect(() => {
     localStorage.setItem('jopesa_alumni', JSON.stringify(alumni));
   }, [alumni]);
 
@@ -65,15 +137,10 @@ export default function Home() {
     localStorage.setItem('jopesa_branches', JSON.stringify(branches));
   }, [branches]);
 
-  const showToast = (message: string, type = '') => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: '' }), 2800);
-  };
-
   const handlePrefillAlumni = (year: string, classNum: number | '') => {
     setPrefillData({ year, classNum });
     setActiveTab('alumni');
-    showToast('Year & class pre-filled — just add your name!', 'green');
+    showToast('Year & class pre-filled — just add your name!', 'success');
   };
 
   return (

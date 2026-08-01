@@ -2,12 +2,52 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu, MapPin, UserPlus, Clock, Image as ImageIcon, ExternalLink } from 'lucide-react';
-import { User, Event, Announcement, Document, Branch, Photo } from '@/types';
+import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu, MapPin, UserPlus, Clock, Image as ImageIcon, ExternalLink, LoaderCircle, GraduationCap, BarChart3 } from 'lucide-react';
+import { User, Event, Announcement, Document, Branch, Photo, Batch } from '@/types';
+import Toast from '@/components/Toast';
+
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+const DonutChart = ({ data, size = 180, strokeWidth = 16 }: { data: Array<{ label: string; value: number; color: string }>; size?: number; strokeWidth?: number }) => {
+  const total = data.reduce((sum, item) => sum + Math.max(item.value, 0), 0) || 1;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block', overflow: 'visible' }}>
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(148, 163, 184, 0.18)" strokeWidth={strokeWidth} />
+      {data.map((item) => {
+        const pct = (item.value / total) * 100;
+        const dash = (pct / 100) * circumference;
+        const circle = (
+          <circle
+            key={item.label}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={item.color}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${dash} ${circumference - dash}`}
+            strokeDashoffset={-offset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        );
+        offset += dash;
+        return circle;
+      })}
+      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" style={{ fill: '#f8fafc', fontWeight: 800, fontSize: '18px' }}>
+        {total}
+      </text>
+    </svg>
+  );
+};
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeSection, setActiveSection] = useState<'overview' | 'events' | 'announcements' | 'documents' | 'branches' | 'photos'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'events' | 'announcements' | 'documents' | 'branches' | 'photos' | 'batches' | 'statistics'>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -15,7 +55,20 @@ export default function AdminDashboard() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [alumni, setAlumni] = useState<any[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [stats, setStats] = useState<{ users: number; branches: number; events: number; announcements: number; documents: number; batches?: number } | null>(null);
+  const [adminToken] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('jopesa_admin_token') || '';
+  });
+  const [uploading, setUploading] = useState(false);
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
+  const [isSavingAnnouncement, setIsSavingAnnouncement] = useState(false);
+  const [isCreatingDocument, setIsCreatingDocument] = useState(false);
+  const [isSavingBranch, setIsSavingBranch] = useState(false);
+  const [isSavingBatch, setIsSavingBatch] = useState(false);
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'warning' | 'error' }>({ show: false, message: '', type: 'success' });
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; title: string; message: string; type: 'event' | 'announcement' | 'branch' | 'document' | 'photo' | 'batch' | null; id: string | null; loading: boolean }>({ open: false, title: '', message: '', type: null, id: null, loading: false });
 
   // Event management
   const [showEventForm, setShowEventForm] = useState(false);
@@ -26,9 +79,16 @@ export default function AdminDashboard() {
     startDate: '',
     endDate: '',
     location: '',
+    batchIds: [] as string[],
+    isVirtual: false,
+    meetLink: '',
+    images: [] as string[],
     status: 'upcoming' as 'upcoming' | 'past',
-    externalGalleryUrl: ''
+    registrationForm: [] as Array<{ id: string; label: string; type: string; required: boolean; options?: Array<{ label: string; value: string }> }> ,
+    eventType: 'reunion' as 'reunion' | 'seminar' | 'workshop' | 'networking' | 'other'
   });
+  const [eventImageFiles, setEventImageFiles] = useState<File[]>([]);
+  const [showRegistrationFormModal, setShowRegistrationFormModal] = useState(false);
 
   // Announcement management
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
@@ -36,8 +96,9 @@ export default function AdminDashboard() {
   const [announcementData, setAnnouncementData] = useState({
     title: '',
     content: '',
-    priority: 'normal' as 'normal' | 'urgent',
-    createdBy: 'Admin'
+    type: 'NEWS' as 'NEWS' | 'UPDATE' | 'EVENT' | 'OPPORTUNITY' | 'WARNING',
+    isPinned: false,
+    imageUrl: ''
   });
 
   // Document management
@@ -45,8 +106,10 @@ export default function AdminDashboard() {
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentData, setDocumentData] = useState({
     title: '',
-    type: 'other' as 'minutes' | 'constitution' | 'report' | 'other',
-    uploadedBy: 'Admin'
+    description: '',
+    category: 'General',
+    fileType: 'OTHER' as 'PDF' | 'IMAGE' | 'PRESENTATION' | 'SPREADSHEET' | 'VIDEO' | 'OTHER',
+    tags: ''
   });
 
   // Branch management
@@ -54,39 +117,368 @@ export default function AdminDashboard() {
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [branchData, setBranchData] = useState({
     name: '',
+    code: '',
     region: '',
     leaderId: ''
+  });
+
+  // Batch management
+  const [showBatchForm, setShowBatchForm] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
+  const [batchData, setBatchData] = useState({
+    year: '',
+    name: '',
+    season: ''
   });
 
   // Photo management
   const [showPhotoForm, setShowPhotoForm] = useState(false);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
+  const [statisticsFilters, setStatisticsFilters] = useState({
+    search: '',
+    branchId: 'all',
+    batchId: 'all',
+    role: 'all',
+  });
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
-  useEffect(() => {
-    const auth = localStorage.getItem('jopesa_admin_auth');
-    if (!auth) {
-      router.push('/admin');
+  const getAuthHeaders = (token: string) => ({
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  });
+
+  const normalizeList = (json: unknown) => {
+    if (typeof json !== 'object' || json === null) return [];
+    const value = json as { data?: unknown; items?: unknown };
+    if (Array.isArray(value.data)) return value.data;
+    if (Array.isArray(value)) return value;
+    return Array.isArray(value.items) ? value.items : [];
+  };
+
+  const branchStats = branches.map((branch) => {
+    const members = users.filter((user) => user.branchId === branch.id);
+    return {
+      ...branch,
+      usersCount: members.length || Number(branch.memberCount || 0),
+      alumniCount: members.filter((user) => user.role === 'member').length,
+      leaderCount: members.filter((user) => user.role === 'branch_leader').length,
+    };
+  });
+
+  const batchStats = batches.map((batch) => ({
+    ...batch,
+    eventCount: events.filter((event) => (
+      Array.isArray(event.batches) && event.batches.some((eventBatch) => eventBatch.id === batch.id)
+    ) || event.batchId === batch.id).length,
+  }));
+
+  const filteredUsers = users.filter((user) => {
+    const matchesSearch = !statisticsFilters.search || `${user.name} ${user.email}`.toLowerCase().includes(statisticsFilters.search.toLowerCase());
+    const matchesBranch = statisticsFilters.branchId === 'all' || user.branchId === statisticsFilters.branchId;
+    const matchesRole = statisticsFilters.role === 'all' || user.role === statisticsFilters.role;
+    const matchesBatch = statisticsFilters.batchId === 'all' || (() => {
+      const batchMatch = batches.find((batch) => batch.id === statisticsFilters.batchId);
+      if (!batchMatch) return true;
+      const relatedEvents = events.filter((event) => (
+        Array.isArray(event.batches) && event.batches.some((eventBatch) => eventBatch.id === batchMatch.id)
+      ) || event.batchId === batchMatch.id);
+      return relatedEvents.some((event) => (
+        Array.isArray(event.batches) && event.batches.some((eventBatch) => eventBatch.id === batchMatch.id)
+      ) || event.batchId === batchMatch.id);
+    })();
+    return matchesSearch && matchesBranch && matchesRole && matchesBatch;
+  });
+
+  const statsSummary = {
+    totalUsers: users.length,
+    totalAlumni: users.filter((user) => user.role === 'member').length,
+    totalAdmins: users.filter((user) => user.role === 'admin').length,
+    totalLeaders: users.filter((user) => user.role === 'branch_leader').length,
+    totalBranches: branches.length,
+    totalBatches: batches.length,
+    totalEvents: events.length,
+  };
+
+  const isWithinDateRange = (value: string | undefined, start: string, end: string) => {
+    if (!value) return true;
+    const time = new Date(value).getTime();
+    if (Number.isNaN(time)) return true;
+    if (start && time < new Date(start).getTime()) return false;
+    if (end) {
+      const endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
+      if (time > endDate.getTime()) return false;
+    }
+    return true;
+  };
+
+  const filteredEventsByDate = events.filter((event) => isWithinDateRange(event.startDate, dateRange.start, dateRange.end));
+
+  const roleDistribution = [
+    { label: 'Alumni', value: statsSummary.totalAlumni, color: '#f9c74f' },
+    { label: 'Leaders', value: statsSummary.totalLeaders, color: '#7dd3fc' },
+    { label: 'Admins', value: statsSummary.totalAdmins, color: '#34d399' },
+  ];
+
+  const branchRanking = [...branchStats].sort((a, b) => b.usersCount - a.usersCount).slice(0, 3);
+  const batchRanking = [...batchStats].sort((a, b) => b.eventCount - a.eventCount).slice(0, 3);
+
+  const engagementTrend = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (5 - index));
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const count = filteredEventsByDate.filter((event) => {
+      if (!event.startDate) return false;
+      const eventDate = new Date(event.startDate);
+      return `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}` === monthKey;
+    }).length;
+    return {
+      label: date.toLocaleString('en-US', { month: 'short' }),
+      value: count,
+    };
+  });
+
+  const exportData = (format: 'xls' | 'json') => {
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      summary: statsSummary,
+      filters: { ...statisticsFilters, dateRange },
+      branches: branchStats,
+      batches: batchStats,
+      alumni: filteredUsers,
+    };
+
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'jopesa-statistics.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return;
     }
 
-    const savedEvents = localStorage.getItem('jopesa_events');
-    if (savedEvents) setEvents(JSON.parse(savedEvents));
-    
-    const savedAnnouncements = localStorage.getItem('jopesa_announcements');
-    if (savedAnnouncements) setAnnouncements(JSON.parse(savedAnnouncements));
-    
-    const savedDocuments = localStorage.getItem('jopesa_documents');
-    if (savedDocuments) setDocuments(JSON.parse(savedDocuments));
-    
-    const savedBranches = localStorage.getItem('jopesa_branches');
-    if (savedBranches) setBranches(JSON.parse(savedBranches));
+    const rows = [
+      ['Metric', 'Value'],
+      ['Total users', String(statsSummary.totalUsers)],
+      ['Total alumni', String(statsSummary.totalAlumni)],
+      ['Total leaders', String(statsSummary.totalLeaders)],
+      ['Total admins', String(statsSummary.totalAdmins)],
+      ['Total branches', String(statsSummary.totalBranches)],
+      ['Total batches', String(statsSummary.totalBatches)],
+      ['Total events', String(filteredEventsByDate.length)],
+      ['Date range start', dateRange.start || 'All'],
+      ['Date range end', dateRange.end || 'All'],
+    ];
 
-    const savedPhotos = localStorage.getItem('jopesa_photos');
-    if (savedPhotos) setPhotos(JSON.parse(savedPhotos));
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <body>
+          <table>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`).join('')}</table>
+        </body>
+      </html>
+    `;
 
-    const savedAlumni = localStorage.getItem('jopesa_alumni');
-    if (savedAlumni) setAlumni(JSON.parse(savedAlumni));
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'jopesa-statistics.xls';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const uploadDocumentFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${apiBaseUrl}/upload/document?folder=documents`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error('Document upload failed');
+    }
+    return response.json();
+  };
+
+  const uploadPhotoFiles = async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    const response = await fetch(`${apiBaseUrl}/upload/images?folder=event-photos`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error('Photo upload failed');
+    }
+    return response.json();
+  };
+
+  const uploadEventImages = async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    const response = await fetch(`${apiBaseUrl}/upload/images?folder=events`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error('Images upload failed');
+    }
+    return response.json();
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem('jopesa_admin_token');
+    if (!token) {
+      router.push('/admin');
+      return;
+    }
+
+    const fetchAdminData = async () => {
+      try {
+        const headers = getAuthHeaders(token);
+        const [usersRes, branchesRes, eventsRes, announcementsRes, documentsRes, batchesRes, statsRes, photosRes] = await Promise.all([
+          fetch(`${apiBaseUrl}/admin/users?skip=0&take=50`, { headers }),
+          fetch(`${apiBaseUrl}/branch?skip=0&take=100`, { headers }),
+          fetch(`${apiBaseUrl}/events?skip=0&take=100`, { headers }),
+          fetch(`${apiBaseUrl}/announcements?skip=0&take=100`, { headers }),
+          fetch(`${apiBaseUrl}/documents?skip=0&take=100`, { headers }),
+          fetch(`${apiBaseUrl}/batch?skip=0&take=100`, { headers }),
+          fetch(`${apiBaseUrl}/admin/stats`, { headers }),
+          fetch(`${apiBaseUrl}/photos?skip=0&take=500`, { headers }),
+        ]);
+
+        if (!usersRes.ok || !branchesRes.ok || !eventsRes.ok || !announcementsRes.ok || !documentsRes.ok || !batchesRes.ok) {
+          throw new Error('Dashboard fetch failed');
+        }
+
+        const usersJson = await usersRes.json();
+        setUsers(normalizeList(usersJson));
+
+        const branchesJson = await branchesRes.json();
+        setBranches(normalizeList(branchesJson).map((branch: Record<string, unknown>) => ({
+          ...(branch as Record<string, unknown>),
+          id: String((branch as { id?: unknown }).id ?? ''),
+          name: String((branch as { name?: unknown }).name ?? ''),
+          region: String((branch as { description?: unknown }).description ?? ''),
+          memberCount: Number((branch as { memberCount?: unknown }).memberCount ?? 0),
+          createdAt: (branch as { createdAt?: string }).createdAt ? new Date((branch as { createdAt?: string }).createdAt as string).toLocaleDateString() : '',
+        })));
+
+        const eventsJson = await eventsRes.json();
+        const normalizedEvents = normalizeList(eventsJson).map((event: Record<string, unknown>) => {
+          const imageList = Array.isArray((event as { images?: unknown }).images)
+            ? ((event as { images: string[] }).images).filter(Boolean)
+            : [];
+          const primaryImage = String((event as { image?: unknown }).image ?? '');
+          const images = imageList.length > 0
+            ? imageList
+            : primaryImage
+              ? [primaryImage]
+              : [];
+          return {
+            ...(event as Record<string, unknown>),
+            id: String((event as { id?: unknown }).id ?? ''),
+            title: String((event as { title?: unknown }).title ?? ''),
+            description: String((event as { description?: unknown }).description ?? ''),
+            startDate: String((event as { startDate?: unknown }).startDate ?? ''),
+            endDate: String((event as { endDate?: unknown }).endDate ?? ''),
+            location: String((event as { location?: unknown }).location ?? ''),
+            image: primaryImage || images[0] || undefined,
+            images,
+            status: ((event as { status?: string }).status === 'COMPLETED' || (event as { status?: string }).status === 'CANCELLED' ? 'past' : 'upcoming') as 'upcoming' | 'past',
+            createdAt: (event as { createdAt?: string }).createdAt ? new Date((event as { createdAt?: string }).createdAt as string).toLocaleDateString() : '',
+          };
+        });
+        setEvents(normalizedEvents);
+
+        if (photosRes.ok) {
+          const photosJson = await photosRes.json();
+          const normalizedPhotos: Photo[] = normalizeList(photosJson).map((photo: Record<string, unknown>) => ({
+            id: String((photo as { id?: unknown }).id ?? ''),
+            eventId: String((photo as { eventId?: unknown }).eventId ?? ''),
+            url: String((photo as { url?: unknown }).url ?? ''),
+            uploadedAt: (photo as { createdAt?: string }).createdAt
+              ? new Date((photo as { createdAt?: string }).createdAt as string).toLocaleDateString()
+              : '',
+          }));
+          setPhotos(normalizedPhotos);
+        } else {
+          setPhotos([]);
+        }
+
+        const announcementsJson = await announcementsRes.json();
+        setAnnouncements(normalizeList(announcementsJson).map((announcement: Record<string, unknown>) => ({
+          ...(announcement as Record<string, unknown>),
+          id: String((announcement as { id?: unknown }).id ?? ''),
+          title: String((announcement as { title?: unknown }).title ?? ''),
+          content: String((announcement as { content?: unknown }).content ?? ''),
+          type: ((announcement as { type?: string }).type || 'NEWS') as Announcement['type'],
+          createdAt: (announcement as { createdAt?: string }).createdAt ? new Date((announcement as { createdAt?: string }).createdAt as string).toLocaleDateString() : '',
+          createdBy: String((announcement as { createdBy?: unknown }).createdBy || 'Admin'),
+        })));
+
+        const documentsJson = await documentsRes.json();
+        setDocuments(normalizeList(documentsJson).map((doc: Record<string, unknown>) => ({
+          id: String((doc as { id?: unknown }).id ?? ''),
+          title: String((doc as { title?: unknown }).title ?? ''),
+          type: String((doc as { fileType?: unknown }).fileType || 'OTHER').toLowerCase(),
+          fileUrl: String((doc as { fileUrl?: unknown }).fileUrl ?? ''),
+          uploadedAt: (doc as { createdAt?: string }).createdAt ? new Date((doc as { createdAt?: string }).createdAt as string).toLocaleDateString() : '',
+          uploadedBy: String((doc as { category?: unknown }).category || 'Admin'),
+          category: String((doc as { category?: unknown }).category || ''),
+          fileType: String((doc as { fileType?: unknown }).fileType || 'OTHER'),
+          fileSize: Number((doc as { fileSize?: unknown }).fileSize ?? 0),
+          tags: Array.isArray((doc as { tags?: unknown }).tags) ? ((doc as { tags?: unknown }).tags as string[]) : [],
+        })));
+
+        const batchesJson = await batchesRes.json();
+        const normalizedBatches = normalizeList(batchesJson).map((batch: Record<string, unknown>) => ({
+          id: String((batch as { id?: unknown }).id ?? ''),
+          year: Number((batch as { year?: unknown }).year ?? 0),
+          name: String((batch as { name?: unknown }).name ?? ''),
+          season: (batch as { season?: string }).season || '',
+          createdAt: (batch as { createdAt?: string }).createdAt ? new Date((batch as { createdAt?: string }).createdAt as string).toLocaleDateString() : '',
+        }));
+        setBatches(normalizedBatches);
+
+        if (statsRes.ok) {
+          const statsJson = await statsRes.json();
+          setStats(statsJson);
+        }
+      } catch (error) {
+        console.error('Admin dashboard fetch failed:', error);
+        localStorage.removeItem('jopesa_admin_token');
+        router.push('/admin');
+      }
+    };
+
+    fetchAdminData();
   }, [router]);
+
+  useEffect(() => {
+    if (!toast.show) return;
+    const timer = window.setTimeout(() => {
+      setToast((prev) => ({ ...prev, show: false }));
+    }, 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast.show]);
 
   useEffect(() => {
     localStorage.setItem('jopesa_events', JSON.stringify(events));
@@ -109,17 +501,20 @@ export default function AdminDashboard() {
   }, [photos]);
 
   const handleLogout = () => {
-    localStorage.removeItem('jopesa_admin_auth');
+    localStorage.removeItem('jopesa_admin_token');
     router.push('/admin');
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
+  const showToastMessage = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+    setToast({ show: true, message, type });
+  };
+
+  const openDeleteModal = (type: 'event' | 'announcement' | 'branch' | 'document' | 'photo' | 'batch', id: string, title: string, message: string) => {
+    setDeleteModal({ open: true, title, message, type, id, loading: false });
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal({ open: false, title: '', message: '', type: null, id: null, loading: false });
   };
 
   const handleEditEvent = (event: Event) => {
@@ -130,32 +525,174 @@ export default function AdminDashboard() {
       startDate: event.startDate,
       endDate: event.endDate,
       location: event.location,
-      status: event.status,
-      externalGalleryUrl: event.externalGalleryUrl || ''
+      batchIds: event.batches?.map((b) => b.id) || (event.batchId ? [event.batchId] : []),
+      isVirtual: event.isVirtual || false,
+      meetLink: event.meetLink || '',
+      images: event.images || [],
+      status: (event.status === 'past' ? 'past' : 'upcoming') as 'upcoming' | 'past',
+      registrationForm: Array.isArray(event.registrationForm) ? (event.registrationForm as Array<{ id: string; label: string; type: string; required: boolean; options?: Array<{ label: string; value: string }> }>) : [],
+      eventType: (event.eventType as 'reunion' | 'seminar' | 'workshop' | 'networking' | 'other') || 'reunion',
     });
     setShowEventForm(true);
   };
 
-  const handleCreateEvent = () => {
-    if (!eventData.title || !eventData.startDate || !eventData.endDate || !eventData.location) {
-      alert('Please fill in all required fields');
+  const handleCreateEvent = async () => {
+    if (!eventData.title || !eventData.startDate || !eventData.endDate || !eventData.location || eventData.batchIds.length === 0) {
+      showToastMessage('Please complete the required event fields before saving.', 'warning');
       return;
     }
 
-    if (editingEventId) {
-      setEvents(events.map(e => e.id === editingEventId ? { ...e, ...eventData, externalGalleryUrl: eventData.externalGalleryUrl || undefined } : e));
-      setEditingEventId(null);
-    } else {
-      const newEvent: Event = {
-        id: Date.now().toString(),
-        ...eventData,
-        externalGalleryUrl: eventData.externalGalleryUrl || undefined,
-        createdAt: new Date().toLocaleDateString()
-      };
-      setEvents([newEvent, ...events]);
+    setIsSavingEvent(true);
+
+    let images = [...eventData.images];
+    if (eventImageFiles.length > 0) {
+      try {
+        const uploadResult = await uploadEventImages(eventImageFiles);
+        const newUrls = Array.isArray(uploadResult)
+          ? uploadResult.map((item: { url?: string; secure_url?: string }) => item.url || item.secure_url || '')
+          : [uploadResult.url || uploadResult.secure_url];
+        images = [...images, ...newUrls];
+      } catch (error) {
+        console.error('Images upload failed:', error);
+        showToastMessage('The event images could not be uploaded. Please try again.', 'error');
+        setIsSavingEvent(false);
+        return;
+      }
     }
-    setEventData({ title: '', description: '', startDate: '', endDate: '', location: '', status: 'upcoming', externalGalleryUrl: '' });
+
+    const payload = {
+      title: eventData.title,
+      description: eventData.description,
+      startDate: new Date(eventData.startDate).toISOString(),
+      endDate: new Date(eventData.endDate).toISOString(),
+      location: eventData.location,
+      batchIds: eventData.batchIds,
+      isVirtual: eventData.isVirtual,
+      meetLink: eventData.meetLink || undefined,
+      image: images.length > 0 ? images[0] : undefined,
+      images: images.length > 0 ? images : undefined,
+      eventType: eventData.eventType,
+      registrationForm: eventData.registrationForm.length > 0 ? eventData.registrationForm : undefined,
+      status: eventData.status === 'past' ? 'COMPLETED' : 'PUBLISHED',
+    };
+
+    try {
+      if (editingEventId) {
+        const response = await fetch(`${apiBaseUrl}/events/${editingEventId}`, {
+          method: 'PUT',
+          headers: getAuthHeaders(adminToken),
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          throw new Error('Unable to update event');
+        }
+        const updatedEvent = await response.json();
+        setEvents(events.map((event) => (event.id === editingEventId ? {
+          ...event,
+          ...updatedEvent,
+          status: updatedEvent.status === 'COMPLETED' || updatedEvent.status === 'CANCELLED' ? 'past' : 'upcoming',
+          createdAt: updatedEvent.createdAt ? new Date(updatedEvent.createdAt).toLocaleDateString() : event.createdAt,
+        } : event)));
+        showToastMessage('Event updated successfully.', 'success');
+        setEditingEventId(null);
+      } else {
+        const response = await fetch(`${apiBaseUrl}/events`, {
+          method: 'POST',
+          headers: getAuthHeaders(adminToken),
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          throw new Error('Unable to create event');
+        }
+        const createdEvent = await response.json();
+        setEvents([{
+          ...createdEvent,
+          status: createdEvent.status === 'COMPLETED' || createdEvent.status === 'CANCELLED' ? 'past' : 'upcoming',
+          createdAt: createdEvent.createdAt ? new Date(createdEvent.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+        }, ...events]);
+        showToastMessage('Event created successfully.', 'success');
+      }
+    } catch (error) {
+      console.error('Event save failed:', error);
+      showToastMessage('The event could not be saved. Please try again.', 'error');
+    } finally {
+      setIsSavingEvent(false);
+    }
+
+    setEventData({ title: '', description: '', startDate: '', endDate: '', location: '', batchIds: [], isVirtual: false, meetLink: '', images: [], status: 'upcoming', registrationForm: [], eventType: 'reunion' });
+    setEventImageFiles([]);
     setShowEventForm(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.type || !deleteModal.id) return;
+
+    setDeleteModal(prev => ({ ...prev, loading: true }));
+
+    try {
+      switch (deleteModal.type) {
+        case 'event': {
+          const response = await fetch(`${apiBaseUrl}/events/${deleteModal.id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(adminToken),
+          });
+          if (!response.ok) throw new Error('Unable to delete event');
+          setEvents(prev => prev.filter(event => event.id !== deleteModal.id));
+          break;
+        }
+        case 'announcement': {
+          const response = await fetch(`${apiBaseUrl}/announcements/${deleteModal.id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(adminToken),
+          });
+          if (!response.ok) throw new Error('Unable to delete announcement');
+          setAnnouncements(prev => prev.filter(announcement => announcement.id !== deleteModal.id));
+          break;
+        }
+        case 'branch': {
+          const response = await fetch(`${apiBaseUrl}/branch/${deleteModal.id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(adminToken),
+          });
+          if (!response.ok) throw new Error('Unable to delete branch');
+          setBranches(prev => prev.filter(branch => branch.id !== deleteModal.id));
+          break;
+        }
+        case 'document': {
+          const response = await fetch(`${apiBaseUrl}/documents/${deleteModal.id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(adminToken),
+          });
+          if (!response.ok) throw new Error('Unable to delete document');
+          setDocuments(prev => prev.filter(doc => doc.id !== deleteModal.id));
+          break;
+        }
+        case 'photo': {
+          const response = await fetch(`${apiBaseUrl}/photos/${deleteModal.id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(adminToken),
+          });
+          if (!response.ok && response.status !== 204) throw new Error('Unable to delete photo');
+          setPhotos(prev => prev.filter(photo => photo.id !== deleteModal.id));
+          break;
+        }
+        case 'batch': {
+          const response = await fetch(`${apiBaseUrl}/batch/${deleteModal.id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(adminToken),
+          });
+          if (!response.ok) throw new Error('Unable to delete batch');
+          setBatches(prev => prev.filter(batch => batch.id !== deleteModal.id));
+          break;
+        }
+      }
+      closeDeleteModal();
+    } catch (error) {
+      console.error('Delete failed:', error);
+      showToastMessage('The selected item could not be deleted. Please try again.', 'error');
+    } finally {
+      setDeleteModal(prev => ({ ...prev, loading: false }));
+    }
   };
 
   const handleUploadPhotos = async () => {
@@ -168,21 +705,92 @@ export default function AdminDashboard() {
       return;
     }
 
-    const newPhotos: Photo[] = [];
-    for (const file of photoFiles) {
-      const base64 = await fileToBase64(file);
-      newPhotos.push({
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        eventId: selectedEventId,
-        url: base64,
-        uploadedAt: new Date().toLocaleDateString()
+    try {
+      setUploading(true);
+      const uploadResult = await uploadPhotoFiles(photoFiles);
+      const uploadedItems = Array.isArray(uploadResult) ? uploadResult : [uploadResult];
+      const urls = uploadedItems
+        .map((item: { url?: string; secure_url?: string }) => item.url || item.secure_url || '')
+        .filter(Boolean);
+      const publicIds = uploadedItems
+        .map((item: { publicId?: string; public_id?: string }) => item.publicId || item.public_id || '')
+        .filter(Boolean);
+
+      if (urls.length === 0) {
+        throw new Error('No image URLs returned from Cloudinary');
+      }
+
+      const response = await fetch(`${apiBaseUrl}/photos/bulk`, {
+        method: 'POST',
+        headers: getAuthHeaders(adminToken),
+        body: JSON.stringify({
+          eventId: selectedEventId,
+          urls,
+          publicIds: publicIds.length === urls.length ? publicIds : undefined,
+        }),
       });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message || 'Unable to save photos');
+      }
+
+      const createdPhotos = await response.json();
+      const photoList = Array.isArray(createdPhotos) ? createdPhotos : normalizeList(createdPhotos);
+      const mapped: Photo[] = photoList.map((photo: Record<string, unknown>) => ({
+        id: String(photo.id ?? ''),
+        eventId: String(photo.eventId ?? selectedEventId),
+        url: String(photo.url ?? ''),
+        uploadedAt: photo.createdAt
+          ? new Date(String(photo.createdAt)).toLocaleDateString()
+          : new Date().toLocaleDateString(),
+      }));
+
+      setPhotos([...mapped, ...photos]);
+      setPhotoFiles([]);
+      setPhotoPreviewUrls([]);
+      setSelectedEventId('');
+      setShowPhotoForm(false);
+      showToastMessage('Photos uploaded successfully.', 'success');
+    } catch (error) {
+      console.error('Photo upload failed:', error);
+      showToastMessage(
+        error instanceof Error ? error.message : 'Failed to upload photos.',
+        'error',
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePhotoSelection = (index: number) => {
+    setPhotoFiles((prev) => prev.filter((_, idx) => idx !== index));
+    setPhotoPreviewUrls((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handlePhotoSelection = (files: FileList | null) => {
+    const maxPhotoSizeBytes = 5 * 1024 * 1024 * 1024;
+    const nextFiles = Array.from(files || []);
+    const validFiles = nextFiles.filter((file) => file.size <= maxPhotoSizeBytes);
+    const oversizedFiles = nextFiles.filter((file) => file.size > maxPhotoSizeBytes);
+
+    if (oversizedFiles.length > 0) {
+      showToastMessage(`Some selected files are larger than 5 GB and were not added.`, 'warning');
     }
 
-    setPhotos([...newPhotos, ...photos]);
-    setPhotoFiles([]);
-    setSelectedEventId('');
-    setShowPhotoForm(false);
+    setPhotoFiles(validFiles);
+    const urls = validFiles.map((file) => URL.createObjectURL(file));
+    setPhotoPreviewUrls(urls);
+  };
+
+  const handleEventImageSelection = (files: FileList | null) => {
+    const maxEventImageSizeBytes = 5 * 1024 * 1024 * 1024;
+    const nextFiles = Array.from(files || []);
+    const validFiles = nextFiles.filter((file) => file.size <= maxEventImageSizeBytes);
+    if (validFiles.length !== nextFiles.length) {
+      showToastMessage('Some event images are larger than 5 GB and were not added.', 'warning');
+    }
+    setEventImageFiles(validFiles);
   };
 
   const handleEditAnnouncement = (announcement: Announcement) => {
@@ -190,93 +798,278 @@ export default function AdminDashboard() {
     setAnnouncementData({
       title: announcement.title,
       content: announcement.content,
-      priority: announcement.priority,
-      createdBy: announcement.createdBy
+      type: announcement.type || 'NEWS',
+      isPinned: !!(announcement as { isPinned?: boolean }).isPinned,
+      imageUrl: announcement.imageUrl || ''
     });
     setShowAnnouncementForm(true);
   };
 
-  const handleCreateAnnouncement = () => {
+  const handleSaveAnnouncement = async () => {
     if (!announcementData.title || !announcementData.content) {
-      alert('Please fill in all required fields');
+      showToastMessage('Please fill in the announcement title and content before saving.', 'warning');
       return;
     }
 
-    if (editingAnnouncementId) {
-      setAnnouncements(announcements.map(a => a.id === editingAnnouncementId ? { ...a, ...announcementData } : a));
-      setEditingAnnouncementId(null);
-    } else {
-      const newAnnouncement: Announcement = {
-        id: Date.now().toString(),
-        ...announcementData,
-        createdAt: new Date().toLocaleDateString()
-      };
-      setAnnouncements([newAnnouncement, ...announcements]);
+    setIsSavingAnnouncement(true);
+
+    try {
+      if (editingAnnouncementId) {
+        const response = await fetch(`${apiBaseUrl}/announcements/${editingAnnouncementId}`, {
+          method: 'PUT',
+          headers: getAuthHeaders(adminToken),
+          body: JSON.stringify({
+            title: announcementData.title,
+            content: announcementData.content,
+            type: announcementData.type,
+            isPinned: announcementData.isPinned,
+            image: announcementData.imageUrl || undefined,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error('Unable to update announcement');
+        }
+        const updatedAnnouncement = await response.json();
+        setAnnouncements(announcements.map(a => a.id === editingAnnouncementId ? {
+          ...a,
+          ...updatedAnnouncement,
+          createdAt: updatedAnnouncement.createdAt ? new Date(updatedAnnouncement.createdAt).toLocaleDateString() : a.createdAt,
+        } : a));
+        setEditingAnnouncementId(null);
+      } else {
+        const response = await fetch(`${apiBaseUrl}/announcements`, {
+          method: 'POST',
+          headers: getAuthHeaders(adminToken),
+          body: JSON.stringify({
+            title: announcementData.title,
+            content: announcementData.content,
+            type: announcementData.type,
+            isPinned: announcementData.isPinned,
+            image: announcementData.imageUrl || undefined,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error('Unable to create announcement');
+        }
+        const newAnnouncement = await response.json();
+        setAnnouncements([{ ...newAnnouncement,
+          createdAt: newAnnouncement.createdAt ? new Date(newAnnouncement.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+        }, ...announcements]);
+      }
+    } catch (error) {
+      console.error('Announcement save failed:', error);
+      showToastMessage('The announcement could not be saved. Please try again.', 'error');
+    } finally {
+      setIsSavingAnnouncement(false);
     }
-    setAnnouncementData({ title: '', content: '', priority: 'normal', createdBy: 'Admin' });
+
+    setAnnouncementData({ title: '', content: '', type: 'NEWS', isPinned: false, imageUrl: '' });
     setShowAnnouncementForm(false);
   };
 
   const handleCreateDocument = async () => {
     if (!documentData.title || !documentFile) {
-      alert('Please fill in all required fields');
+      showToastMessage('Please provide a document title and file before uploading.', 'warning');
       return;
     }
 
-    // Convert file to base64 for localStorage
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      const newDocument: Document = {
-        id: Date.now().toString(),
-        title: documentData.title,
-        type: documentData.type,
-        fileUrl: base64,
-        uploadedBy: documentData.uploadedBy,
-        uploadedAt: new Date().toLocaleDateString()
-      };
-      setDocuments([newDocument, ...documents]);
-      setDocumentData({ title: '', type: 'other', uploadedBy: 'Admin' });
+    setIsCreatingDocument(true);
+
+    try {
+      const uploadResponse = await uploadDocumentFile(documentFile);
+      const fileUrl = uploadResponse.url || uploadResponse.secure_url;
+      const fileType = documentData.fileType;
+      const fileSize = documentFile.size;
+      const response = await fetch(`${apiBaseUrl}/documents`, {
+        method: 'POST',
+        headers: getAuthHeaders(adminToken),
+        body: JSON.stringify({
+          title: documentData.title,
+          description: documentData.description || undefined,
+          fileUrl,
+          fileType,
+          fileSize,
+          category: documentData.category,
+          tags: documentData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Unable to create document');
+      }
+      const createdDoc = await response.json();
+      setDocuments([{
+        id: createdDoc.id,
+        title: createdDoc.title,
+        type: createdDoc.fileType.toLowerCase(),
+        fileUrl: createdDoc.fileUrl,
+        uploadedAt: createdDoc.createdAt ? new Date(createdDoc.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+        uploadedBy: createdDoc.category,
+        category: createdDoc.category,
+        fileType: createdDoc.fileType,
+        fileSize: createdDoc.fileSize,
+        tags: createdDoc.tags || [],
+      }, ...documents]);
+      setDocumentData({ title: '', description: '', category: 'General', fileType: 'OTHER', tags: '' });
       setDocumentFile(null);
       setShowDocumentForm(false);
-    };
-    reader.readAsDataURL(documentFile);
+    } catch (error) {
+      console.error('Document upload failed:', error);
+      showToastMessage('The document could not be uploaded. Please try again.', 'error');
+    } finally {
+      setIsCreatingDocument(false);
+    }
   };
 
   const handleEditBranch = (branch: Branch) => {
     setEditingBranchId(branch.id);
     setBranchData({
       name: branch.name,
+      code: (branch as { code?: string }).code || '',
       region: branch.region,
       leaderId: branch.leaderId || ''
     });
     setShowBranchForm(true);
   };
 
-  const handleCreateBranch = () => {
-    if (!branchData.name || !branchData.region) {
-      alert('Please fill in all required fields');
+  const handleCreateBranch = async () => {
+    if (!branchData.name || !branchData.region || !branchData.code) {
+      showToastMessage('Please complete all branch fields before saving.', 'warning');
       return;
     }
 
+    setIsSavingBranch(true);
+
     if (editingBranchId) {
-      setBranches(branches.map(b => b.id === editingBranchId ? { ...b, ...branchData } : b));
+      const response = await fetch(`${apiBaseUrl}/branch/${editingBranchId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(adminToken),
+        body: JSON.stringify({
+          name: branchData.name,
+          code: branchData.code,
+          description: branchData.region,
+        }),
+      });
+
+      if (response.ok) {
+        const updatedBranch = await response.json();
+        setBranches(branches.map(b => b.id === editingBranchId ? { ...b, ...updatedBranch, region: updatedBranch.description || branchData.region } : b));
+      } else {
+        showToastMessage('The branch could not be updated. Please try again.', 'error');
+      }
       setEditingBranchId(null);
     } else {
-      const newBranch: Branch = {
-        id: Date.now().toString(),
-        ...branchData,
-        memberCount: 0,
-        createdAt: new Date().toLocaleDateString()
-      };
-      setBranches([newBranch, ...branches]);
+      const response = await fetch(`${apiBaseUrl}/branch`, {
+        method: 'POST',
+        headers: getAuthHeaders(adminToken),
+        body: JSON.stringify({
+          name: branchData.name,
+          code: branchData.code,
+          description: branchData.region,
+        }),
+      });
+
+      if (response.ok) {
+        const createdBranch = await response.json();
+        setBranches([{ ...createdBranch, region: createdBranch.description || branchData.region, memberCount: 0, createdAt: createdBranch.createdAt ? new Date(createdBranch.createdAt).toLocaleDateString() : '' }, ...branches]);
+      } else {
+        showToastMessage('The branch could not be created. Please try again.', 'error');
+      }
     }
-    setBranchData({ name: '', region: '', leaderId: '' });
+
+    setBranchData({ name: '', code: '', region: '', leaderId: '' });
     setShowBranchForm(false);
+    setIsSavingBranch(false);
+  };
+
+  const handleEditBatch = (batch: Batch) => {
+    setEditingBatchId(batch.id);
+    setBatchData({
+      year: String(batch.year),
+      name: batch.name,
+      season: batch.season || ''
+    });
+    setShowBatchForm(true);
+  };
+
+  const handleCreateBatch = async () => {
+    if (!batchData.year || !batchData.name) {
+      showToastMessage('Please provide a batch year and name before saving.', 'warning');
+      return;
+    }
+
+    setIsSavingBatch(true);
+
+    try {
+      const payload = {
+        year: Number(batchData.year),
+        name: batchData.name,
+        season: batchData.season || undefined,
+      };
+
+      if (editingBatchId) {
+        const response = await fetch(`${apiBaseUrl}/batch/${editingBatchId}`, {
+          method: 'PUT',
+          headers: getAuthHeaders(adminToken),
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error('Unable to update batch');
+        }
+
+        const updatedBatch = await response.json();
+        setBatches(batches.map((batch) => (batch.id === editingBatchId ? { ...batch, ...updatedBatch } : batch)));
+        showToastMessage('Batch updated successfully.', 'success');
+        setEditingBatchId(null);
+      } else {
+        const response = await fetch(`${apiBaseUrl}/batch`, {
+          method: 'POST',
+          headers: getAuthHeaders(adminToken),
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error('Unable to create batch');
+        }
+
+        const createdBatch = await response.json();
+        setBatches([{ ...createdBatch, createdAt: createdBatch.createdAt ? new Date(createdBatch.createdAt).toLocaleDateString() : '' }, ...batches]);
+        showToastMessage('Batch created successfully.', 'success');
+      }
+    } catch (error) {
+      console.error('Batch save failed:', error);
+      showToastMessage('The batch could not be saved. Please try again.', 'error');
+    } finally {
+      setIsSavingBatch(false);
+      setBatchData({ year: '', name: '', season: '' });
+      setShowBatchForm(false);
+    }
+  };
+
+  const handleDeleteBatch = (id: string) => {
+    openDeleteModal('batch', id, 'Delete batch?', 'This action will remove the batch from the system and may affect alumni and events that currently use it.');
   };
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--off)' }}>
+      <Toast show={toast.show} message={toast.message} type={toast.type} />
+
+      {deleteModal.open && (
+        <div onClick={closeDeleteModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '480px', background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 18px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--navy)', marginBottom: '8px' }}>{deleteModal.title}</div>
+            <div style={{ fontSize: '14px', color: 'var(--gray)', lineHeight: 1.6 }}>{deleteModal.message}</div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
+              <button onClick={closeDeleteModal} disabled={deleteModal.loading} style={{ padding: '10px 16px', background: 'var(--off)', color: 'var(--navy)', border: '1px solid var(--lgray)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+                Cancel
+              </button>
+              <button onClick={handleConfirmDelete} disabled={deleteModal.loading} style={{ padding: '10px 16px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                {deleteModal.loading ? <><LoaderCircle size={16} className="loading-spinner" /> Deleting...</> : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div 
@@ -351,10 +1144,22 @@ export default function AdminDashboard() {
             <Users size={18} /> Branches
           </button>
           <button
+            onClick={() => { setActiveSection('batches'); setSidebarOpen(false); }}
+            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'batches' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'batches' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+          >
+            <GraduationCap size={18} /> Batches
+          </button>
+          <button
             onClick={() => { setActiveSection('photos'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'photos' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'photos' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <ImageIcon size={18} /> Photos
+          </button>
+          <button
+            onClick={() => { setActiveSection('statistics'); setSidebarOpen(false); }}
+            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'statistics' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'statistics' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+          >
+            <BarChart3 size={18} /> Statistics
           </button>
         </nav>
 
@@ -401,7 +1206,240 @@ export default function AdminDashboard() {
           <div className="stat-cell"><div className="stat-num">{events.length}</div><div className="stat-lbl">Events</div></div>
           <div className="stat-cell"><div className="stat-num">{announcements.length}</div><div className="stat-lbl">Posts</div></div>
           <div className="stat-cell"><div className="stat-num">{documents.length}</div><div className="stat-lbl">Docs</div></div>
+          <div className="stat-cell"><div className="stat-num">{stats?.batches ?? batches.length}</div><div className="stat-lbl">Batches</div></div>
         </div>
+
+        {activeSection === 'statistics' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="card" style={{ padding: '24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88))', color: '#e2e8f0', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>Member Statistics</div>
+                  <div style={{ fontSize: 12, color: '#cbd5e1', marginTop: 4 }}>Track alumni, branches, batches and overall participation</div>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button onClick={() => exportData('xls')} style={{ padding: '10px 14px', border: '1px solid rgba(148, 163, 184, 0.4)', borderRadius: '8px', background: 'rgba(15, 23, 42, 0.8)', color: '#f8fafc', fontWeight: 700, cursor: 'pointer' }}>Export Excel</button>
+                  <button onClick={() => exportData('json')} style={{ padding: '10px 14px', border: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, var(--gold), #f59e0b)', color: 'var(--navy)', fontWeight: 800, cursor: 'pointer' }}>Export JSON</button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+                <input
+                  type="text"
+                  value={statisticsFilters.search}
+                  onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, search: e.target.value }))}
+                  placeholder="Search alumni by name or email"
+                  style={{ flex: '1 1 220px', padding: '12px 14px', border: '1px solid rgba(148, 163, 184, 0.35)', borderRadius: '10px', fontSize: '14px', minWidth: 200, background: 'rgba(15, 23, 42, 0.6)', color: '#f8fafc' }}
+                />
+                <select
+                  value={statisticsFilters.branchId}
+                  onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, branchId: e.target.value }))}
+                  style={{ flex: '1 1 180px', padding: '12px 14px', border: '1px solid rgba(148, 163, 184, 0.35)', borderRadius: '10px', fontSize: '14px', minWidth: 180, background: 'rgba(15, 23, 42, 0.6)', color: '#f8fafc' }}
+                >
+                  <option value="all" style={{ color: '#0f172a' }}>All branches</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id} style={{ color: '#0f172a' }}>{branch.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={statisticsFilters.batchId}
+                  onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, batchId: e.target.value }))}
+                  style={{ flex: '1 1 180px', padding: '12px 14px', border: '1px solid rgba(148, 163, 184, 0.35)', borderRadius: '10px', fontSize: '14px', minWidth: 180, background: 'rgba(15, 23, 42, 0.6)', color: '#f8fafc' }}
+                >
+                  <option value="all" style={{ color: '#0f172a' }}>All batches</option>
+                  {batches.map((batch) => (
+                    <option key={batch.id} value={batch.id} style={{ color: '#0f172a' }}>{batch.name || `Batch ${batch.year}`}</option>
+                  ))}
+                </select>
+                <select
+                  value={statisticsFilters.role}
+                  onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, role: e.target.value }))}
+                  style={{ flex: '1 1 180px', padding: '12px 14px', border: '1px solid rgba(148, 163, 184, 0.35)', borderRadius: '10px', fontSize: '14px', minWidth: 180, background: 'rgba(15, 23, 42, 0.6)', color: '#f8fafc' }}
+                >
+                  <option value="all" style={{ color: '#0f172a' }}>All roles</option>
+                  <option value="member" style={{ color: '#0f172a' }}>Alumni</option>
+                  <option value="branch_leader" style={{ color: '#0f172a' }}>Branch leaders</option>
+                  <option value="admin" style={{ color: '#0f172a' }}>Admins</option>
+                </select>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <input type="date" value={dateRange.start} onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))} style={{ flex: '1 1 170px', padding: '12px 14px', border: '1px solid rgba(148, 163, 184, 0.35)', borderRadius: '10px', background: 'rgba(15, 23, 42, 0.6)', color: '#f8fafc' }} />
+                  <input type="date" value={dateRange.end} onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))} style={{ flex: '1 1 170px', padding: '12px 14px', border: '1px solid rgba(148, 163, 184, 0.35)', borderRadius: '10px', background: 'rgba(15, 23, 42, 0.6)', color: '#f8fafc' }} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
+                <div className="stat-cell" style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(148, 163, 184, 0.25)' }}><div className="stat-num" style={{ color: '#f8fafc' }}>{statsSummary.totalAlumni}</div><div className="stat-lbl" style={{ color: '#cbd5e1' }}>Alumni</div></div>
+                <div className="stat-cell" style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(148, 163, 184, 0.25)' }}><div className="stat-num" style={{ color: '#f8fafc' }}>{statsSummary.totalLeaders}</div><div className="stat-lbl" style={{ color: '#cbd5e1' }}>Leaders</div></div>
+                <div className="stat-cell" style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(148, 163, 184, 0.25)' }}><div className="stat-num" style={{ color: '#f8fafc' }}>{statsSummary.totalAdmins}</div><div className="stat-lbl" style={{ color: '#cbd5e1' }}>Admins</div></div>
+                <div className="stat-cell" style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(148, 163, 184, 0.25)' }}><div className="stat-num" style={{ color: '#f8fafc' }}>{statsSummary.totalBranches}</div><div className="stat-lbl" style={{ color: '#cbd5e1' }}>Branches</div></div>
+                <div className="stat-cell" style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(148, 163, 184, 0.25)' }}><div className="stat-num" style={{ color: '#f8fafc' }}>{statsSummary.totalBatches}</div><div className="stat-lbl" style={{ color: '#cbd5e1' }}>Batches</div></div>
+                <div className="stat-cell" style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(148, 163, 184, 0.25)' }}><div className="stat-num" style={{ color: '#f8fafc' }}>{filteredEventsByDate.length}</div><div className="stat-lbl" style={{ color: '#cbd5e1' }}>Events</div></div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+              <div className="card" style={{ padding: '24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88))', color: '#e2e8f0', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', marginBottom: '16px' }}>Engagement trend</div>
+                <div style={{ display: 'flex', alignItems: 'end', gap: '10px', height: '140px', paddingTop: '10px' }}>
+                  {engagementTrend.map((item) => {
+                    const maxValue = Math.max(...engagementTrend.map((entry) => entry.value), 1);
+                    const height = `${Math.max((item.value / maxValue) * 100, 12)}%`;
+                    return (
+                      <div key={item.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'end', justifyContent: 'center' }}>
+                          <div style={{ width: '100%', maxWidth: '42px', height, background: 'linear-gradient(180deg, #f9c74f, #7dd3fc)', borderRadius: '8px 8px 0 0', boxShadow: '0 10px 20px rgba(39, 52, 102, 0.12)' }} />
+                        </div>
+                        <div style={{ fontSize: 11, color: '#cbd5e1' }}>{item.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: '24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88))', color: '#e2e8f0', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', marginBottom: '16px' }}>Role mix</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '18px' }}>
+                  <DonutChart data={roleDistribution} size={160} strokeWidth={18} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {roleDistribution.map((entry) => {
+                    const pct = statsSummary.totalUsers ? (entry.value / statsSummary.totalUsers) * 100 : 0;
+                    return (
+                      <div key={entry.label}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px', color: '#cbd5e1' }}>
+                          <span>{entry.label}</span>
+                          <span>{entry.value}</span>
+                        </div>
+                        <div style={{ background: 'rgba(148, 163, 184, 0.18)', height: '10px', borderRadius: '999px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${entry.color}, #cbd5e1)`, borderRadius: '999px' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px' }}>
+              <div className="card" style={{ padding: '24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88))', color: '#e2e8f0', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', marginBottom: '16px' }}>Top branches</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {branchRanking.map((branch, index) => (
+                    <div key={branch.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: '10px', background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #f9c74f, #7dd3fc)', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800 }}>{index + 1}</div>
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#f8fafc' }}>{branch.name}</div>
+                          <div style={{ fontSize: 11, color: '#cbd5e1' }}>{branch.region || 'Regional branch'}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 800, color: '#f8fafc' }}>{branch.usersCount}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: '24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88))', color: '#e2e8f0', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', marginBottom: '16px' }}>Top batches</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {batchRanking.map((batch, index) => (
+                    <div key={batch.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: '10px', background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #34d399, #7dd3fc)', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800 }}>{index + 1}</div>
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#f8fafc' }}>{batch.name || `Batch ${batch.year}`}</div>
+                          <div style={{ fontSize: 11, color: '#cbd5e1' }}>{batch.season || 'Batch record'}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 800, color: '#f8fafc' }}>{batch.eventCount}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px' }}>
+              <div className="card" style={{ padding: '24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88))', color: '#e2e8f0', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', marginBottom: '16px' }}>Branch statistics</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                  {branchStats.map((branch) => (
+                    <div key={branch.id} style={{ padding: '18px', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.7)' }}>
+                      <div style={{ fontWeight: 800, color: '#f8fafc', fontSize: 16 }}>{branch.name}</div>
+                      <div style={{ fontSize: 12, color: '#cbd5e1', marginBottom: 14 }}>{branch.region || 'No region set'}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#cbd5e1' }}>Users</div>
+                          <div style={{ fontWeight: 800, fontSize: 20, color: '#f8fafc' }}>{branch.usersCount}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#cbd5e1' }}>Alumni</div>
+                          <div style={{ fontWeight: 800, fontSize: 20, color: '#f8fafc' }}>{branch.alumniCount}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#cbd5e1' }}>Leaders</div>
+                          <div style={{ fontWeight: 800, fontSize: 20, color: '#f8fafc' }}>{branch.leaderCount}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: '24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88))', color: '#e2e8f0', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', marginBottom: '16px' }}>Batch statistics</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                  {batchStats.map((batch) => (
+                    <div key={batch.id} style={{ padding: '18px', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.7)' }}>
+                      <div style={{ fontWeight: 800, color: '#f8fafc', fontSize: 16 }}>{batch.name || `Batch ${batch.year}`}</div>
+                      <div style={{ fontSize: 12, color: '#cbd5e1', marginBottom: 14 }}>{batch.season || 'Batch record'}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#cbd5e1' }}>Events</div>
+                          <div style={{ fontWeight: 800, fontSize: 20, color: '#f8fafc' }}>{batch.eventCount}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#cbd5e1' }}>Year</div>
+                          <div style={{ fontWeight: 800, fontSize: 20, color: '#f8fafc' }}>{batch.year || '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88))', color: '#e2e8f0', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>Filtered alumni</div>
+                <div style={{ fontSize: 12, color: '#cbd5e1' }}>{filteredUsers.length} record(s)</div>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', color: '#e2e8f0' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(148, 163, 184, 0.2)', color: '#cbd5e1' }}>
+                      <th style={{ padding: '10px 8px' }}>Name</th>
+                      <th style={{ padding: '10px 8px' }}>Email</th>
+                      <th style={{ padding: '10px 8px' }}>Role</th>
+                      <th style={{ padding: '10px 8px' }}>Branch</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.length > 0 ? filteredUsers.map((user) => (
+                      <tr key={user.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.12)' }}>
+                        <td style={{ padding: '10px 8px', color: '#f8fafc', fontWeight: 600 }}>{user.name}</td>
+                        <td style={{ padding: '10px 8px', color: '#cbd5e1' }}>{user.email}</td>
+                        <td style={{ padding: '10px 8px', color: '#f8fafc' }}>{user.role}</td>
+                        <td style={{ padding: '10px 8px', color: '#cbd5e1' }}>{branches.find((branch) => branch.id === user.branchId)?.name || 'Unassigned'}</td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={4} style={{ padding: '22px 8px', textAlign: 'center', color: '#cbd5e1' }}>No alumni match the selected filters.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {activeSection === 'overview' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }} className="admin-grid-2">
@@ -458,7 +1496,7 @@ export default function AdminDashboard() {
         )}
 
         {activeSection === 'events' && (
-          <div className="card">
+          <div className="card" style={{ width: '100%', maxWidth: '100%', padding: '24px 24px 20px' }}>
             <div className="reg-header">
               <div>
                 <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)' }}>Manage Events</div>
@@ -469,18 +1507,212 @@ export default function AdminDashboard() {
               </button>
             </div>
             {showEventForm && (
-              <div className="reg-panel open">
+              <div
+                className="reg-panel open event-form-panel"
+                style={{
+                  width: '100%',
+                  paddingTop: '8px',
+                  maxHeight: '70vh',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  paddingRight: '8px'
+                }}
+              >
                 <div className="divider"></div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px', width: '100%' }} className="admin-grid-2">
                   <div className="fg"><label>Event Title *</label><input type="text" value={eventData.title} onChange={(e) => setEventData({ ...eventData, title: e.target.value })} placeholder="e.g. Annual Reunion" /></div>
                   <div className="fg"><label>Location *</label><input type="text" value={eventData.location} onChange={(e) => setEventData({ ...eventData, location: e.target.value })} placeholder="e.g. JOPACC Campus" /></div>
+                  <div className="fg"><label>Batch Numbers *</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allBatchIds = batches.map((batch) => batch.id).filter(Boolean);
+                          setEventData({ ...eventData, batchIds: allBatchIds });
+                        }}
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--navy)', background: 'var(--navy)', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                      >
+                        All Batches
+                      </button>
+                    </div>
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const selectedBatchId = e.target.value;
+                        if (!selectedBatchId || eventData.batchIds.includes(selectedBatchId)) return;
+                        setEventData({ ...eventData, batchIds: [...eventData.batchIds, selectedBatchId] });
+                      }}
+                      style={{ width: '100%', padding: '12px 14px', border: '2px solid var(--lgray)', borderRadius: '8px', fontSize: '14px' }}
+                    >
+                      <option value="">— Select a batch —</option>
+                      {batches.map((batch) => {
+                        const label = batch?.name || `Batch ${batch?.year ?? ''}`;
+                        return (
+                          <option key={batch.id} value={batch.id}>{label}</option>
+                        );
+                      })}
+                    </select>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {eventData.batchIds.map((batchId) => {
+                        const batch = batches.find((item) => item.id === batchId);
+                        const label = batch?.name || `Batch ${batch?.year ?? ''}`;
+                        return (
+                          <span key={batchId} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: 'var(--off)', border: '1px solid var(--lgray)', borderRadius: '999px', fontSize: '12px', color: 'var(--navy)' }}>
+                            {label}
+                            <button type="button" onClick={() => setEventData({ ...eventData, batchIds: eventData.batchIds.filter((id) => id !== batchId) })} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--navy)' }} aria-label={`Remove ${label}`}>
+                              <X size={12} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
                   <div className="fg"><label>Start Date *</label><input type="date" value={eventData.startDate} onChange={(e) => setEventData({ ...eventData, startDate: e.target.value })} /></div>
                   <div className="fg"><label>End Date *</label><input type="date" value={eventData.endDate} onChange={(e) => setEventData({ ...eventData, endDate: e.target.value })} /></div>
                 </div>
-                <div className="fg"><label>Description</label><input type="text" value={eventData.description} onChange={(e) => setEventData({ ...eventData, description: e.target.value })} placeholder="Event details..." /></div>
-                <div className="fg"><label>External Gallery URL (optional)</label><input type="url" value={eventData.externalGalleryUrl} onChange={(e) => setEventData({ ...eventData, externalGalleryUrl: e.target.value })} placeholder="e.g. Google Drive folder link" style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Link to external photo gallery (Google Drive, Dropbox, etc.)</div></div>
+                <div className="fg"><label>Description</label><textarea value={eventData.description} onChange={(e) => setEventData({ ...eventData, description: e.target.value })} placeholder="Event details..." style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit', minHeight: '80px', resize: 'vertical' }} /></div>
+                <div className="fg"><label>Event Images</label><input type="file" multiple accept="image/*" onChange={(e) => handleEventImageSelection(e.target.files)} style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Upload one or more event images</div></div>
+                {(eventImageFiles.length > 0 || eventData.images?.length) && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', marginTop: '8px' }}>
+                    {eventImageFiles.map((file, index) => (
+                      <div key={`new-${index}`} style={{ border: '1px solid var(--lgray)', borderRadius: '8px', overflow: 'hidden' }}>
+                        <img src={URL.createObjectURL(file)} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '120px', objectFit: 'cover' }} />
+                      </div>
+                    ))}
+                    {eventData.images?.map((image, index) => (
+                      <div key={`existing-${index}`} style={{ border: '1px solid var(--lgray)', borderRadius: '8px', overflow: 'hidden' }}>
+                        <img src={image} alt={`Existing preview ${index + 1}`} style={{ width: '100%', height: '120px', objectFit: 'cover' }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '8px', padding: '12px 14px', background: 'var(--off)', borderRadius: '10px', border: '1px solid var(--lgray)' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--gray)' }}>
+                    {eventData.registrationForm.length > 0 ? `${eventData.registrationForm.length} registration field${eventData.registrationForm.length > 1 ? 's' : ''} configured` : 'No registration form yet'}
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setShowRegistrationFormModal(true)}
+                    style={{ padding: '8px 12px', background: 'var(--gold)', color: 'var(--navy)', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Plus size={14} /> {eventData.registrationForm.length > 0 ? 'Edit Form' : 'Add Form'}
+                  </button>
+                </div>
                 <div className="fg"><label>Status</label><div className="sel-wrap"><select value={eventData.status} onChange={(e) => setEventData({ ...eventData, status: e.target.value as 'upcoming' | 'past' })}><option value="upcoming">Upcoming</option><option value="past">Past</option></select></div></div>
-                <button className="btn btn-navy" onClick={handleCreateEvent}>{editingEventId ? 'Update Event →' : 'Create Event →'}</button>
+                <button className="btn btn-navy" onClick={handleCreateEvent} disabled={isSavingEvent} style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{isSavingEvent ? <><LoaderCircle size={16} className="loading-spinner" /> {editingEventId ? 'Updating Event...' : 'Creating Event...'}</> : <>{editingEventId ? 'Update Event →' : 'Create Event →'}</>}</button>
+              </div>
+            )}
+            {showRegistrationFormModal && (
+              <div
+                onClick={() => setShowRegistrationFormModal(false)}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ width: '100%', maxWidth: '680px', maxHeight: '85vh', overflowY: 'auto', background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 18px 60px rgba(0,0,0,0.25)' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--navy)' }}>Registration Form Builder</div>
+                      <div style={{ fontSize: 13, color: 'var(--gray)', marginTop: '4px' }}>Create the fields for event registration</div>
+                    </div>
+                    <button type="button" onClick={() => setShowRegistrationFormModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--gray)', padding: '4px' }}>
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {eventData.registrationForm.map((field, index) => (
+                      <div key={index} style={{ padding: '12px', background: 'var(--off)', borderRadius: '10px', border: '1px solid var(--lgray)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <input
+                            type="text"
+                            value={field.label}
+                            onChange={(e) => {
+                              const updated = [...eventData.registrationForm];
+                              updated[index].label = e.target.value;
+                              setEventData({ ...eventData, registrationForm: updated });
+                            }}
+                            placeholder="Field Label (e.g., Full Name)"
+                            style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--lgray)', borderRadius: '6px', fontSize: '13px' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = eventData.registrationForm.filter((_, i) => i !== index);
+                              setEventData({ ...eventData, registrationForm: updated });
+                            }}
+                            style={{ marginLeft: '8px', padding: '6px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                          <select
+                            value={field.type}
+                            onChange={(e) => {
+                              const updated = [...eventData.registrationForm];
+                              updated[index].type = e.target.value;
+                              setEventData({ ...eventData, registrationForm: updated });
+                            }}
+                            style={{ padding: '8px 12px', border: '1px solid var(--lgray)', borderRadius: '6px', fontSize: '13px' }}
+                          >
+                            <option value="text">Text</option>
+                            <option value="number">Number</option>
+                            <option value="email">Email</option>
+                            <option value="textarea">Text Area</option>
+                            <option value="radio">Radio</option>
+                            <option value="checkbox">Checkbox</option>
+                            <option value="select">Select</option>
+                            <option value="file">File Upload</option>
+                            <option value="date">Date</option>
+                          </select>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                            <input
+                              type="checkbox"
+                              checked={field.required}
+                              onChange={(e) => {
+                                const updated = [...eventData.registrationForm];
+                                updated[index].required = e.target.checked;
+                                setEventData({ ...eventData, registrationForm: updated });
+                              }}
+                            />
+                            Required
+                          </label>
+                        </div>
+                        {(field.type === 'radio' || field.type === 'checkbox' || field.type === 'select') && (
+                          <div style={{ marginTop: '8px' }}>
+                            <div style={{ fontSize: 12, color: 'var(--gray)', marginBottom: '4px' }}>Options (comma-separated):</div>
+                            <input
+                              type="text"
+                              value={field.options?.map((o: { label: string }) => o.label).join(', ') || ''}
+                              onChange={(e) => {
+                                const updated = [...eventData.registrationForm];
+                                updated[index].options = e.target.value.split(',').map((s: string) => ({ label: s.trim(), value: s.trim().toLowerCase().replace(/\s+/g, '_') })).filter((o: { label: string }) => o.label);
+                                setEventData({ ...eventData, registrationForm: updated });
+                              }}
+                              placeholder="Option 1, Option 2, Option 3"
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--lgray)', borderRadius: '6px', fontSize: '13px' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setEventData({ ...eventData, registrationForm: [...eventData.registrationForm, { id: `field_${Date.now()}`, label: '', type: 'text', required: false, options: [] }] })}
+                      style={{ padding: '10px 16px', background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+                    >
+                      + Add Field
+                    </button>
+                  </div>
+                  <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="button" onClick={() => setShowRegistrationFormModal(false)} style={{ padding: '10px 16px', background: 'var(--gold)', color: 'var(--navy)', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                      Done
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
             {events.length === 0 ? (
@@ -500,7 +1732,7 @@ export default function AdminDashboard() {
                       >
                         Edit
                       </button>
-                      <button className="del-btn" onClick={() => setEvents(events.filter(e => e.id !== event.id))}><Trash2 size={14} /></button>
+                      <button className="del-btn" onClick={() => openDeleteModal('event', event.id, 'Delete event?', 'This action will remove the event from the dashboard and cannot be undone.') }><Trash2 size={14} /></button>
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{event.title}</div>
                     <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>{event.description}</div>
@@ -509,9 +1741,9 @@ export default function AdminDashboard() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> {event.location}</span>
                     </div>
                     <div style={{ marginTop: 10 }}><span className={`status-badge ${event.status}`}>{event.status}</span></div>
-                    {event.externalGalleryUrl && (
+                    {(event as any).meetLink && (
                       <a
-                        href={event.externalGalleryUrl}
+                        href={(event as any).meetLink}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -525,7 +1757,7 @@ export default function AdminDashboard() {
                           fontWeight: 500
                         }}
                       >
-                        <ExternalLink size={10} /> External Gallery
+                        <ExternalLink size={10} /> Meeting Link
                       </a>
                     )}
                   </div>
@@ -551,10 +1783,14 @@ export default function AdminDashboard() {
                 <div className="divider"></div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
                   <div className="fg"><label>Title *</label><input type="text" value={announcementData.title} onChange={(e) => setAnnouncementData({ ...announcementData, title: e.target.value })} placeholder="e.g. Annual Meeting Schedule" /></div>
-                  <div className="fg"><label>Priority</label><div className="sel-wrap"><select value={announcementData.priority} onChange={(e) => setAnnouncementData({ ...announcementData, priority: e.target.value as 'normal' | 'urgent' })}><option value="normal">Normal</option><option value="urgent">Urgent</option></select></div></div>
+                  <div className="fg"><label>Type</label><div className="sel-wrap"><select value={announcementData.type} onChange={(e) => setAnnouncementData({ ...announcementData, type: e.target.value as 'NEWS' | 'UPDATE' | 'EVENT' | 'OPPORTUNITY' | 'WARNING' })}><option value="NEWS">News</option><option value="UPDATE">Update</option><option value="EVENT">Event</option><option value="OPPORTUNITY">Opportunity</option><option value="WARNING">Warning</option></select></div></div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
+                  <div className="fg"><label>Image URL (optional)</label><input type="url" value={announcementData.imageUrl} onChange={(e) => setAnnouncementData({ ...announcementData, imageUrl: e.target.value })} placeholder="https://example.com/image.jpg" /></div>
+                  <div className="fg" style={{ display: 'flex', alignItems: 'flex-end' }}><label style={{ width: '100%', marginBottom: 8 }}>Pin announcement</label><div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><input type="checkbox" checked={announcementData.isPinned} onChange={(e) => setAnnouncementData({ ...announcementData, isPinned: e.target.checked })} /> <span style={{ color: 'var(--gray)', fontSize: 13 }}>Pinned</span></div></div>
                 </div>
                 <div className="fg"><label>Content *</label><textarea value={announcementData.content} onChange={(e) => setAnnouncementData({ ...announcementData, content: e.target.value })} placeholder="Announcement details..." style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit', minHeight: '100px', resize: 'vertical' }} /></div>
-                <button className="btn btn-navy" onClick={handleCreateAnnouncement}>{editingAnnouncementId ? 'Update Announcement →' : 'Post Announcement →'}</button>
+                <button className="btn btn-navy" onClick={handleSaveAnnouncement} disabled={isSavingAnnouncement} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{isSavingAnnouncement ? <><LoaderCircle size={16} className="loading-spinner" /> {editingAnnouncementId ? 'Updating Announcement...' : 'Posting Announcement...'}</> : <>{editingAnnouncementId ? 'Update Announcement →' : 'Post Announcement →'}</>}</button>
               </div>
             )}
             {announcements.length === 0 ? (
@@ -566,7 +1802,7 @@ export default function AdminDashboard() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', marginTop: '16px' }}>
                 {announcements.map(announcement => (
-                  <div key={announcement.id} className="card" style={{ borderLeft: announcement.priority === 'urgent' ? '4px solid var(--err)' : '4px solid var(--gold)', position: 'relative', marginTop: 10 }}>
+                  <div key={announcement.id} className="card" style={{ borderLeft: (announcement as any).isPinned ? '4px solid var(--gold)' : '4px solid var(--lgray)', position: 'relative', marginTop: 10 }}>
                     <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: '8px' }}>
                       <button 
                         onClick={() => handleEditAnnouncement(announcement)}
@@ -574,11 +1810,11 @@ export default function AdminDashboard() {
                       >
                         Edit
                       </button>
-                      <button className="del-btn" onClick={() => setAnnouncements(announcements.filter(a => a.id !== announcement.id))}><Trash2 size={14} /></button>
+                      <button className="del-btn" onClick={() => openDeleteModal('announcement', announcement.id, 'Delete announcement?', 'This action will remove the announcement from the dashboard.') }><Trash2 size={14} /></button>
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{announcement.title}</div>
                     <div style={{ fontSize: 14, color: 'var(--dark)', lineHeight: 1.5, marginBottom: 8 }}>{announcement.content}</div>
-                    <div style={{ fontSize: 12, color: 'var(--gray)' }}>{announcement.createdAt} · by {announcement.createdBy}</div>
+                    <div style={{ fontSize: 12, color: 'var(--gray)' }}>{announcement.createdAt} · {announcement.type} · by {announcement.createdBy}</div>
                   </div>
                 ))}
               </div>
@@ -602,10 +1838,15 @@ export default function AdminDashboard() {
                 <div className="divider"></div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
                   <div className="fg"><label>Document Title *</label><input type="text" value={documentData.title} onChange={(e) => setDocumentData({ ...documentData, title: e.target.value })} placeholder="e.g. Annual Meeting Minutes" /></div>
-                  <div className="fg"><label>Type</label><div className="sel-wrap"><select value={documentData.type} onChange={(e) => setDocumentData({ ...documentData, type: e.target.value as 'minutes' | 'constitution' | 'report' | 'other' })}><option value="minutes">Meeting Minutes</option><option value="constitution">Constitution</option><option value="report">Report</option><option value="other">Other</option></select></div></div>
+                  <div className="fg"><label>Category *</label><input type="text" value={documentData.category} onChange={(e) => setDocumentData({ ...documentData, category: e.target.value })} placeholder="e.g. Reports" /></div>
                 </div>
-                <div className="fg"><label>File *</label><input type="file" onChange={(e) => setDocumentFile(e.target.files?.[0] || null)} accept=".pdf,.doc,.docx,.txt" style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Accepted: PDF, DOC, DOCX, TXT</div></div>
-                <button className="btn btn-navy" onClick={handleCreateDocument}>Upload Document →</button>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
+                  <div className="fg"><label>File Type</label><div className="sel-wrap"><select value={documentData.fileType} onChange={(e) => setDocumentData({ ...documentData, fileType: e.target.value as 'PDF' | 'IMAGE' | 'PRESENTATION' | 'SPREADSHEET' | 'VIDEO' | 'OTHER' })}><option value="PDF">PDF</option><option value="IMAGE">Image</option><option value="PRESENTATION">Presentation</option><option value="SPREADSHEET">Spreadsheet</option><option value="VIDEO">Video</option><option value="OTHER">Other</option></select></div></div>
+                  <div className="fg"><label>Tags</label><input type="text" value={documentData.tags} onChange={(e) => setDocumentData({ ...documentData, tags: e.target.value })} placeholder="e.g. alumni,meeting,minutes" /></div>
+                </div>
+                <div className="fg"><label>Description (optional)</label><textarea value={documentData.description} onChange={(e) => setDocumentData({ ...documentData, description: e.target.value })} placeholder="Short summary of the document" style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit', minHeight: '90px', resize: 'vertical' }} /></div>
+                <div className="fg"><label>File *</label><input type="file" onChange={(e) => setDocumentFile(e.target.files?.[0] || null)} accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xlsx,.csv" style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Accepted: PDF, DOC, DOCX, TXT, PPT, PPTX, XLSX, CSV</div></div>
+                <button className="btn btn-navy" onClick={handleCreateDocument} disabled={isCreatingDocument} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{isCreatingDocument ? <><LoaderCircle size={16} className="loading-spinner" /> Uploading Document...</> : <>Upload Document →</>}</button>
               </div>
             )}
             {documents.length === 0 ? (
@@ -618,7 +1859,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginTop: '16px' }}>
                 {documents.map(doc => (
                   <div key={doc.id} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', minHeight: '80px' }}>
-                    <button className="del-btn" style={{ position: 'absolute', top: 12, right: 12 }} onClick={() => setDocuments(documents.filter(d => d.id !== doc.id))}><Trash2 size={14} /></button>
+                    <button className="del-btn" style={{ position: 'absolute', top: 12, right: 12 }} onClick={() => openDeleteModal('document', doc.id, 'Delete document?', 'This action will remove the document from the list and storage.') }><Trash2 size={14} /></button>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)', marginBottom: 3 }}>{doc.title}</div>
                       <div style={{ fontSize: 12, color: 'var(--gray)' }}>{doc.type} · {doc.uploadedAt}</div>
@@ -646,10 +1887,13 @@ export default function AdminDashboard() {
                 <div className="divider"></div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
                   <div className="fg"><label>Branch Name *</label><input type="text" value={branchData.name} onChange={(e) => setBranchData({ ...branchData, name: e.target.value })} placeholder="e.g. Douala Chapter" /></div>
-                  <div className="fg"><label>Region *</label><input type="text" value={branchData.region} onChange={(e) => setBranchData({ ...branchData, region: e.target.value })} placeholder="e.g. Littoral Region" /></div>
+                  <div className="fg"><label>Branch Code *</label><input type="text" value={branchData.code} onChange={(e) => setBranchData({ ...branchData, code: e.target.value })} placeholder="e.g. DOU" /></div>
                 </div>
-                <div className="fg"><label>Leader ID (optional)</label><input type="text" value={branchData.leaderId} onChange={(e) => setBranchData({ ...branchData, leaderId: e.target.value })} placeholder="Enter user ID" /></div>
-                <button className="btn btn-navy" onClick={handleCreateBranch}>{editingBranchId ? 'Update Branch →' : 'Create Branch →'}</button>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
+                  <div className="fg"><label>Region *</label><input type="text" value={branchData.region} onChange={(e) => setBranchData({ ...branchData, region: e.target.value })} placeholder="e.g. Littoral Region" /></div>
+                  <div className="fg"><label>Leader ID (optional)</label><input type="text" value={branchData.leaderId} onChange={(e) => setBranchData({ ...branchData, leaderId: e.target.value })} placeholder="Enter user ID" /></div>
+                </div>
+                <button className="btn btn-navy" onClick={handleCreateBranch} disabled={isSavingBranch} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{isSavingBranch ? <><LoaderCircle size={16} className="loading-spinner" /> {editingBranchId ? 'Updating Branch...' : 'Creating Branch...'}</> : <>{editingBranchId ? 'Update Branch →' : 'Create Branch →'}</>}</button>
               </div>
             )}
             {branches.length === 0 ? (
@@ -661,7 +1905,7 @@ export default function AdminDashboard() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', marginTop: '16px' }}>
                 {branches.map(branch => {
-                  const memberCount = alumni.filter(a => a.branchId === branch.id).length;
+                  const memberCount = users.filter((user: User) => (user as { branchId?: string }).branchId === branch.id).length;
                   return (
                     <div key={branch.id} className="card" style={{ position: 'relative' }}>
                       <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: '8px' }}>
@@ -671,7 +1915,7 @@ export default function AdminDashboard() {
                         >
                           Edit
                         </button>
-                        <button className="del-btn" onClick={() => setBranches(branches.filter(b => b.id !== branch.id))}><Trash2 size={14} /></button>
+                        <button className="del-btn" onClick={() => openDeleteModal('branch', branch.id, 'Delete branch?', 'This action will remove the branch from the system.') }><Trash2 size={14} /></button>
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{branch.name}</div>
                       <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>{branch.region}</div>
@@ -682,6 +1926,57 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'batches' && (
+          <div className="card">
+            <div className="reg-header">
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)' }}>Manage Batches</div>
+                <div style={{ fontSize: 12, color: 'var(--gray)' }}>Create and manage alumni cohort records</div>
+              </div>
+              <button className="btn btn-gold btn-sm" onClick={() => { setShowBatchForm(!showBatchForm); setEditingBatchId(null); }}>
+                {showBatchForm ? <X size={14} /> : <Plus size={14} />} {showBatchForm ? 'Cancel' : 'New Batch'}
+              </button>
+            </div>
+            {showBatchForm && (
+              <div className="reg-panel open">
+                <div className="divider"></div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
+                  <div className="fg"><label>Batch Year *</label><input type="number" value={batchData.year} onChange={(e) => setBatchData({ ...batchData, year: e.target.value })} placeholder="e.g. 2024" /></div>
+                  <div className="fg"><label>Batch Name *</label><input type="text" value={batchData.name} onChange={(e) => setBatchData({ ...batchData, name: e.target.value })} placeholder="e.g. Batch 2024" /></div>
+                </div>
+                <div className="fg"><label>Season (optional)</label><input type="text" value={batchData.season} onChange={(e) => setBatchData({ ...batchData, season: e.target.value })} placeholder="e.g. Spring" /></div>
+                <button className="btn btn-navy" onClick={handleCreateBatch} disabled={isSavingBatch} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{isSavingBatch ? <><LoaderCircle size={16} className="loading-spinner" /> {editingBatchId ? 'Updating Batch...' : 'Creating Batch...'}</> : <>{editingBatchId ? 'Update Batch →' : 'Create Batch →'}</>}</button>
+              </div>
+            )}
+            {batches.length === 0 ? (
+              <div className="empty-state" style={{ textAlign: 'center', padding: '48px 24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '16px' }}><GraduationCap size={48} style={{ color: 'var(--navy)' }} /></div>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--navy)', marginBottom: '8px' }}>No batches yet</div>
+                <div style={{ fontSize: '14px', color: 'var(--gray)' }}>Create your first alumni batch to get started</div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginTop: '16px' }}>
+                {batches.map((batch) => (
+                  <div key={batch.id} className="card" style={{ position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => handleEditBatch(batch)}
+                        style={{ background: 'var(--off)', color: 'var(--navy)', border: '1px solid var(--lgray)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600 }}
+                      >
+                        Edit
+                      </button>
+                      <button className="del-btn" onClick={() => handleDeleteBatch(batch.id)}><Trash2 size={14} /></button>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{batch.name}</div>
+                    <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 8 }}>Year {batch.year}{batch.season ? ` · ${batch.season}` : ''}</div>
+                    <div style={{ fontSize: 12, color: 'var(--gray)' }}>{batch.createdAt || 'Recently added'}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -713,11 +2008,36 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="fg">
-                  <label>Photos *</label>
-                  <input type="file" multiple accept="image/*" onChange={(e) => setPhotoFiles(Array.from(e.target.files || []))} style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} />
-                  <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Accepted: JPG, PNG, GIF, WebP</div>
+                  <label>Photos & Videos *</label>
+                  <input type="file" multiple accept="image/*,video/*" onChange={(e) => handlePhotoSelection(e.target.files)} style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} />
+                  <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Accepted: JPG, PNG, GIF, WebP, MP4, MOV, AVI</div>
                 </div>
-                <button className="btn btn-navy" onClick={handleUploadPhotos}>Upload Photos →</button>
+                {photoPreviewUrls.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', marginBottom: '12px' }}>
+                    {photoPreviewUrls.map((url, index) => {
+                      const file = photoFiles[index];
+                      const isVideo = file?.type?.startsWith('video/');
+                      return (
+                        <div key={`${file?.name || 'media'}-${index}`} style={{ position: 'relative', border: '1px solid var(--lgray)', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+                          {isVideo ? (
+                            <video src={url} controls style={{ width: '100%', height: '110px', objectFit: 'cover', display: 'block', background: '#000' }} />
+                          ) : (
+                            <img src={url} alt={`Media preview ${index + 1}`} style={{ width: '100%', height: '110px', objectFit: 'cover', display: 'block' }} />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removePhotoSelection(index)}
+                            aria-label={`Remove selected media ${index + 1}`}
+                            style={{ position: 'absolute', top: '6px', right: '6px', width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: 'rgba(15, 23, 42, 0.78)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <button className="btn btn-navy" onClick={handleUploadPhotos} disabled={uploading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{uploading ? <><LoaderCircle size={16} className="loading-spinner" /> Uploading Photos...</> : <>Upload Photos →</>}</button>
               </div>
             )}
             {photos.length === 0 ? (
@@ -739,7 +2059,7 @@ export default function AdminDashboard() {
                           <div key={photo.id} style={{ position: 'relative' }}>
                             <img src={photo.url} alt="Event photo" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px' }} />
                             <button 
-                              onClick={() => setPhotos(photos.filter(p => p.id !== photo.id))}
+                              onClick={() => openDeleteModal('photo', photo.id, 'Delete photo?', 'This action will remove the photo from the event gallery.')}
                               style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                             >
                               <Trash2 size={12} />

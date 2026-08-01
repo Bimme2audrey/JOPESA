@@ -6,7 +6,7 @@ import { getBatchInfo, maxClass, updateYearHint, CLASS_NAMES, SY } from '@/lib/b
 import { BatchInfo } from '@/types';
 
 interface BatchFinderProps {
-  onPrefillAlumni: (year: string, classNum: number | '') => void;
+  onPrefillAlumni?: (year: string, classNum: number | '') => void;
 }
 
 export default function BatchFinder({ onPrefillAlumni }: BatchFinderProps) {
@@ -41,7 +41,7 @@ export default function BatchFinder({ onPrefillAlumni }: BatchFinderProps) {
   };
 
   const prefillAlumni = () => {
-    onPrefillAlumni(yIn, cIn);
+    onPrefillAlumni?.(yIn, cIn);
   };
 
   const buildRefTable = () => {
@@ -123,7 +123,9 @@ export default function BatchFinder({ onPrefillAlumni }: BatchFinderProps) {
                 You entered in {result.className}. Your batch matches those who entered Form 1 in {result.f1AcadYear}.
               </div>
             )}
-            <button className="btn btn-gold" style={{ marginTop: 13 }} onClick={prefillAlumni}>+ Register as Alumni</button>
+            {onPrefillAlumni && (
+              <button className="btn btn-gold" style={{ marginTop: 13 }} onClick={prefillAlumni}>+ Register as Alumni</button>
+            )}
           </div>
         )}
       </div>

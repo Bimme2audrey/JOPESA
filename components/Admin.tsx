@@ -79,6 +79,7 @@ export default function Admin({ users, events, announcements, documents, branche
     const newAnnouncement: Announcement = {
       id: Date.now().toString(),
       ...announcementData,
+      type: 'NEWS',
       createdAt: new Date().toLocaleDateString()
     };
     onAnnouncementsChange([newAnnouncement, ...announcements]);

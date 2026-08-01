@@ -1,8 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Lock, Mail, Eye, EyeOff } from 'lucide-react';
+import { Shield, Lock, Mail, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+const getApiErrorMessage = (payload: any): string => {
+  if (Array.isArray(payload?.message)) {
+    return payload.message.flat(Infinity).filter(Boolean).join(' ');
+  }
+
+  if (typeof payload?.message === 'string' && payload.message.trim()) {
+    return payload.message;
+  }
+
+  if (typeof payload?.error === 'string' && payload.error.trim()) {
+    return payload.error;
+  }
+
+  return 'Invalid credentials or backend unavailable';
+};
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -10,18 +28,33 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@jopesa.org';
-    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin123';
-    
-    if (email === adminEmail && password === adminPassword) {
-      localStorage.setItem('jopesa_admin_auth', 'true');
+    setError('');
+    setIsLoggingIn(true);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(getApiErrorMessage(payload));
+      }
+
+      const data = await response.json();
+      localStorage.setItem('jopesa_admin_token', data.accessToken);
       router.push('/admin/dashboard');
-    } else {
-      setError('Invalid credentials');
+    } catch (err) {
+      console.error('Admin login failed:', err);
+      setError(err instanceof Error && err.message ? err.message : 'Invalid credentials or backend unavailable');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -82,8 +115,8 @@ export default function AdminLogin() {
             </div>
           </div>
 
-          <button type="submit" className="btn btn-navy">
-            Sign In →
+          <button type="submit" className="btn btn-navy" disabled={isLoggingIn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            {isLoggingIn ? <><LoaderCircle size={16} className="loading-spinner" /> Signing in...</> : <>Sign In →</>}
           </button>
         </form>
       </div>

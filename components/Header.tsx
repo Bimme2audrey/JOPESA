@@ -1,7 +1,7 @@
 'use client';
 
+import Link from 'next/link';
 import { Info } from 'lucide-react';
-import { useState } from 'react';
 
 interface HeaderProps {
   onShowAbout?: () => void;
@@ -21,28 +21,32 @@ export default function Header({ onShowAbout }: HeaderProps) {
           <div className="hdr-sub">JOPACC Wum · Est. 2007</div>
           <div className="hdr-mot">Lux Mundi Et Sal Terrae</div>
         </div>
-        {onShowAbout && (
-          <button
-            onClick={onShowAbout}
-            style={{
-              position: 'absolute',
-              right: '16px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              background: 'var(--off)',
-              border: '1px solid var(--lgray)',
-              borderRadius: '8px',
-              padding: '8px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--navy)'
-            }}
-          >
-            <Info size={18} />
-          </button>
-        )}
+        <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <Link href="/alumni/login" style={{ textDecoration: 'none', color: 'var(--navy)', fontSize: '13px', fontWeight: 700 }}>
+            Login
+          </Link>
+          <Link href="/alumni/register" style={{ textDecoration: 'none', color: 'var(--navy)', fontSize: '13px', fontWeight: 700 }}>
+            Register
+          </Link>
+          {onShowAbout && (
+            <button
+              onClick={onShowAbout}
+              style={{
+                background: 'var(--off)',
+                border: '1px solid var(--lgray)',
+                borderRadius: '8px',
+                padding: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--navy)'
+              }}
+            >
+              <Info size={18} />
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );

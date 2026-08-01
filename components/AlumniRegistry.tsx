@@ -9,7 +9,7 @@ interface AlumniRegistryProps {
   alumni: Alumni[];
   branches: Branch[];
   onAlumniChange: (alumni: Alumni[]) => void;
-  onShowToast: (message: string, type?: string) => void;
+  onShowToast: (message: string, type?: 'success' | 'warning' | 'error') => void;
   prefillData?: { year: string; classNum: number | '' };
 }
 
@@ -75,7 +75,7 @@ export default function AlumniRegistry({ alumni, branches, onAlumniChange, onSho
     setRegClass('');
     setRegBranchId('');
     setShowRegPanel(false);
-    onShowToast(`${name} registered as Batch ${info.batch}!`, 'green');
+    onShowToast(`${name} registered as Batch ${info.batch}!`, 'success');
   };
 
   const deleteAlumni = (id: number) => {

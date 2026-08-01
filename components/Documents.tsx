@@ -12,7 +12,12 @@ export default function Documents({ documents }: DocumentsProps) {
     minutes: 'Meeting Minutes',
     constitution: 'Constitution',
     report: 'Report',
-    other: 'Other'
+    pdf: 'PDF',
+    image: 'Image',
+    presentation: 'Presentation',
+    spreadsheet: 'Spreadsheet',
+    video: 'Video',
+    other: 'Other',
   };
 
   return (
@@ -29,19 +34,22 @@ export default function Documents({ documents }: DocumentsProps) {
         </div>
       ) : (
         <div className="documents-list">
-          {documents.map(doc => (
-            <div key={doc.id} className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)', marginBottom: 3 }}>{doc.title}</div>
-                <div style={{ fontSize: 12, color: 'var(--gray)' }}>
-                  {documentTypes[doc.type]} · {doc.uploadedAt}
+          {documents.map(doc => {
+            const typeLabel = (documentTypes as Record<string, string>)[(doc.type || '').toLowerCase()] || doc.fileType || doc.type || 'Other';
+            const subtitle = [doc.category, typeLabel, doc.uploadedAt].filter(Boolean).join(' • ');
+
+            return (
+              <div key={doc.id} className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)', marginBottom: 3 }}>{doc.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray)' }}>{subtitle}</div>
                 </div>
+                <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-navy btn-sm" style={{ textDecoration: 'none' }}>
+                  <Download size={14} />
+                </a>
               </div>
-              <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-navy btn-sm" style={{ textDecoration: 'none' }}>
-                <Download size={14} />
-              </a>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

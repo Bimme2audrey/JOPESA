@@ -1,0 +1,98 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Menu } from 'lucide-react';
+import AlumniSidebar from '@/components/alumni/AlumniSidebar';
+import { getAlumniToken } from '@/lib/api';
+
+export default function AlumniAppLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [ready, setReady] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('alumni-portal');
+    return () => document.body.classList.remove('alumni-portal');
+  }, []);
+
+  useEffect(() => {
+    const token = getAlumniToken();
+    if (!token) {
+      router.replace('/alumni/login');
+      return;
+    }
+    setReady(true);
+  }, [router, pathname]);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  if (!ready) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--off)',
+          color: 'var(--navy)',
+          fontWeight: 700,
+        }}
+      >
+        Loading alumni portal...
+      </div>
+    );
+  }
+
+  return (
+    <div className="alumni-app" style={{ minHeight: '100vh', display: 'flex', background: 'var(--off)' }}>
+      <AlumniSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="alumni-main" style={{ flex: 1, marginLeft: 260, minWidth: 0 }}>
+        <header
+          className="alumni-topbar"
+          style={{
+            display: 'none',
+            alignItems: 'center',
+            gap: 12,
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, var(--navy), var(--navy2))',
+            color: '#fff',
+            position: 'sticky',
+            top: 0,
+            zIndex: 50,
+          }}
+        >
+          <button
+            onClick={() => setSidebarOpen(true)}
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              border: 'none',
+              color: '#fff',
+              borderRadius: 8,
+              width: 40,
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+            aria-label="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+          <div>
+            <div style={{ fontWeight: 800, color: 'var(--gold2)', fontSize: 15 }}>JOPESA Alumni</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Member dashboard</div>
+          </div>
+        </header>
+
+        <main style={{ padding: '24px 28px 40px', maxWidth: 1100 }}>{children}</main>
+      </div>
+    </div>
+  );
+}

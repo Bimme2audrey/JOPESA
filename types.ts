@@ -30,6 +30,29 @@ export interface Branch {
   createdAt: string;
 }
 
+export interface Batch {
+  id: string;
+  year: number;
+  name: string;
+  season?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface FormFieldOption {
+  label: string;
+  value: string;
+}
+
+export interface FormField {
+  id: string;
+  label: string;
+  type: 'text' | 'number' | 'email' | 'textarea' | 'radio' | 'checkbox' | 'select' | 'file' | 'date' | string;
+  required?: boolean;
+  placeholder?: string;
+  options?: FormFieldOption[];
+}
+
 export interface Event {
   id: string;
   title: string;
@@ -37,9 +60,18 @@ export interface Event {
   startDate: string;
   endDate: string;
   location: string;
-  status: 'upcoming' | 'past';
+  status: 'upcoming' | 'past' | string;
+  batchId?: string;
+  batches?: Batch[];
   externalGalleryUrl?: string;
+  isVirtual?: boolean;
+  meetLink?: string;
+  image?: string;
+  images?: string[];
+  registrationForm?: FormField[];
+  eventType?: string;
   createdAt: string;
+  _count?: { attendees?: number };
 }
 
 export interface Photo {
@@ -48,13 +80,22 @@ export interface Photo {
   url: string;
   externalUrl?: string;
   uploadedAt: string;
+  eventTitle?: string;
+  event?: {
+    id: string;
+    title: string;
+  };
 }
 
 export interface Announcement {
   id: string;
   title: string;
   content: string;
-  priority: 'normal' | 'urgent';
+  type: 'NEWS' | 'UPDATE' | 'EVENT' | 'OPPORTUNITY' | 'WARNING';
+  priority?: 'normal' | 'urgent';
+  isPinned?: boolean;
+  image?: string;
+  imageUrl?: string;
   createdAt: string;
   createdBy: string;
 }
@@ -62,10 +103,14 @@ export interface Announcement {
 export interface Document {
   id: string;
   title: string;
-  type: 'minutes' | 'constitution' | 'report' | 'other';
+  type: string;
   fileUrl: string;
   uploadedAt: string;
   uploadedBy: string;
+  category?: string;
+  fileType?: string;
+  fileSize?: number;
+  tags?: string[];
 }
 
 export interface User {
