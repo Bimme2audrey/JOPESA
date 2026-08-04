@@ -125,7 +125,7 @@ export default function AlumniDashboardPage() {
 
   return (
     <div className="animate-float-in">
-      <div className="page-header">
+      <div className="page-header page-header-dashboard">
         <div className="page-header-icon">
           <CalendarDays size={32} />
         </div>

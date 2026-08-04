@@ -249,6 +249,14 @@ body.alumni-portal{padding-bottom:0;}
   .alumni-main{margin-left:0 !important;}
   .alumni-topbar{display:flex !important;}
   .alumni-grid-2,.alumni-grid-3{grid-template-columns:1fr !important;}
+  .alumni-sidebar > div:first-child{
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .alumni-sidebar > div:first-child img{
+    width:44px;
+    height:44px;
+  }
 }
 
 @media (max-width: 640px){
@@ -1022,11 +1030,31 @@ body:has(.landing-main){padding-bottom:0;}
   font-size:14px;color:rgba(255,255,255,.7);margin:4px 0 0;
 }
 
+/* Dashboard-specific header without blue background */
+.page-header-dashboard{
+  background:transparent;
+  box-shadow:none;
+  color:var(--dark);
+  padding:0;
+}
+.page-header-dashboard .page-header-icon{
+  background:rgba(0,43,107,.08);
+  color:var(--navy);
+}
+.page-header-dashboard .page-header-title{
+  color:var(--navy);
+}
+.page-header-dashboard .page-header-subtitle{
+  color:var(--gray);
+}
+
 @media (max-width:768px){
   .page-header{flex-direction:column;text-align:center;padding:24px 20px;}
   .page-header-icon{margin-bottom:8px;}
   .page-header-title{font-size:22px;}
   .page-header-subtitle{font-size:13px;}
+  .page-header-dashboard{flex-direction:row;text-align:left;}
+  .page-header-dashboard .page-header-icon{margin-bottom:0;}
 }
 
 /* ── Gallery Page ── */
