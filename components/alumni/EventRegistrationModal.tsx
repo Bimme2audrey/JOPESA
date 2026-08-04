@@ -149,6 +149,8 @@ export default function EventRegistrationModal({
     }
   };
 
+  if (!open) return null;
+
   return (
     <div className="alumni-modal-backdrop" onClick={onClose}>
       <div className="alumni-modal" onClick={(e) => e.stopPropagation()}>

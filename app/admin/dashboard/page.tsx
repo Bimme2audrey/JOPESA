@@ -70,6 +70,8 @@ export default function AdminDashboard() {
   const [isSavingBatch, setIsSavingBatch] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'warning' | 'error' }>({ show: false, message: '', type: 'success' });
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; title: string; message: string; type: 'event' | 'announcement' | 'branch' | 'document' | 'photo' | 'batch' | 'registration' | null; id: string | null; loading: boolean }>({ open: false, title: '', message: '', type: null, id: null, loading: false });
+  const [branchStatsModal, setBranchStatsModal] = useState(false);
+  const [batchStatsModal, setBatchStatsModal] = useState(false);
 
   // Event management
   const [showEventForm, setShowEventForm] = useState(false);
@@ -1503,65 +1505,28 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Detailed Statistics */}
-            <div className="admin-stats-detailed">
-              <div className="admin-detailed-card">
-                <div className="admin-detailed-header">
+            {/* Detailed Statistics Buttons */}
+            <div className="admin-stats-detailed-buttons">
+              <button 
+                onClick={() => setBranchStatsModal(true)}
+                className="admin-stats-detail-btn"
+              >
+                <Building2 size={20} />
+                <div>
                   <h3>Branch Statistics</h3>
-                  <Building2 size={20} />
+                  <p>View detailed branch metrics</p>
                 </div>
-                <div className="admin-detailed-grid">
-                  {branchStats.map((branch) => (
-                    <div key={branch.id} className="admin-detailed-item">
-                      <div className="admin-detailed-item-header">
-                        <h4>{branch.name}</h4>
-                        <span>{branch.region || 'No region set'}</span>
-                      </div>
-                      <div className="admin-detailed-stats">
-                        <div className="admin-detailed-stat">
-                          <span className="admin-detailed-stat-label">Users</span>
-                          <span className="admin-detailed-stat-value">{branch.usersCount}</span>
-                        </div>
-                        <div className="admin-detailed-stat">
-                          <span className="admin-detailed-stat-label">Alumni</span>
-                          <span className="admin-detailed-stat-value">{branch.alumniCount}</span>
-                        </div>
-                        <div className="admin-detailed-stat">
-                          <span className="admin-detailed-stat-label">Leaders</span>
-                          <span className="admin-detailed-stat-value">{branch.leaderCount}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="admin-detailed-card">
-                <div className="admin-detailed-header">
+              </button>
+              <button 
+                onClick={() => setBatchStatsModal(true)}
+                className="admin-stats-detail-btn"
+              >
+                <GraduationCap size={20} />
+                <div>
                   <h3>Batch Statistics</h3>
-                  <GraduationCap size={20} />
+                  <p>View detailed batch metrics</p>
                 </div>
-                <div className="admin-detailed-grid">
-                  {batchStats.map((batch) => (
-                    <div key={batch.id} className="admin-detailed-item">
-                      <div className="admin-detailed-item-header">
-                        <h4>{batch.name || `Batch ${batch.year}`}</h4>
-                        <span>{batch.season || 'Batch record'}</span>
-                      </div>
-                      <div className="admin-detailed-stats admin-detailed-stats-pair">
-                        <div className="admin-detailed-stat">
-                          <span className="admin-detailed-stat-label">Events</span>
-                          <span className="admin-detailed-stat-value">{batch.eventCount}</span>
-                        </div>
-                        <div className="admin-detailed-stat">
-                          <span className="admin-detailed-stat-label">Year</span>
-                          <span className="admin-detailed-stat-value">{batch.year || '—'}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              </button>
             </div>
 
             <div className="admin-stats-table-card">
@@ -1596,6 +1561,82 @@ export default function AdminDashboard() {
                 </table>
               </div>
             </div>
+
+            {/* Branch Statistics Modal */}
+            {branchStatsModal && (
+              <div className="admin-modal-overlay" onClick={() => setBranchStatsModal(false)}>
+                <div className="admin-modal-content" onClick={(e) => e.stopPropagation()}>
+                  <div className="admin-modal-header">
+                    <h3>Branch Statistics</h3>
+                    <button onClick={() => setBranchStatsModal(false)} className="admin-modal-close">
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="admin-modal-body">
+                    <div className="admin-detailed-grid">
+                      {branchStats.map((branch) => (
+                        <div key={branch.id} className="admin-detailed-item">
+                          <div className="admin-detailed-item-header">
+                            <h4>{branch.name}</h4>
+                            <span>{branch.region || 'No region set'}</span>
+                          </div>
+                          <div className="admin-detailed-stats">
+                            <div className="admin-detailed-stat">
+                              <span className="admin-detailed-stat-label">Users</span>
+                              <span className="admin-detailed-stat-value">{branch.usersCount}</span>
+                            </div>
+                            <div className="admin-detailed-stat">
+                              <span className="admin-detailed-stat-label">Alumni</span>
+                              <span className="admin-detailed-stat-value">{branch.alumniCount}</span>
+                            </div>
+                            <div className="admin-detailed-stat">
+                              <span className="admin-detailed-stat-label">Leaders</span>
+                              <span className="admin-detailed-stat-value">{branch.leaderCount}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Batch Statistics Modal */}
+            {batchStatsModal && (
+              <div className="admin-modal-overlay" onClick={() => setBatchStatsModal(false)}>
+                <div className="admin-modal-content" onClick={(e) => e.stopPropagation()}>
+                  <div className="admin-modal-header">
+                    <h3>Batch Statistics</h3>
+                    <button onClick={() => setBatchStatsModal(false)} className="admin-modal-close">
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="admin-modal-body">
+                    <div className="admin-detailed-grid">
+                      {batchStats.map((batch) => (
+                        <div key={batch.id} className="admin-detailed-item">
+                          <div className="admin-detailed-item-header">
+                            <h4>{batch.name || `Batch ${batch.year}`}</h4>
+                            <span>{batch.season || 'Batch record'}</span>
+                          </div>
+                          <div className="admin-detailed-stats admin-detailed-stats-pair">
+                            <div className="admin-detailed-stat">
+                              <span className="admin-detailed-stat-label">Events</span>
+                              <span className="admin-detailed-stat-value">{batch.eventCount}</span>
+                            </div>
+                            <div className="admin-detailed-stat">
+                              <span className="admin-detailed-stat-label">Year</span>
+                              <span className="admin-detailed-stat-value">{batch.year || '—'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

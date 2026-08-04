@@ -1641,6 +1641,32 @@ body:has(.landing-main){padding-bottom:0;}
   font-size:18px;font-weight:800;color:var(--navy);
 }
 
+/* Detailed Stats Buttons */
+.admin-stats-detailed-buttons{
+  display:none;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;
+  margin-bottom:24px;
+}
+.admin-stats-detail-btn{
+  display:flex;align-items:center;gap:16px;padding:20px;background:var(--white);
+  border-radius:16px;border:2px solid rgba(0,43,107,.08);
+  box-shadow:0 2px 12px rgba(0,43,107,.08);cursor:pointer;
+  transition:all .2s;text-align:left;
+}
+.admin-stats-detail-btn:hover{
+  border-color:var(--navy);background:rgba(0,43,107,.02);
+  transform:translateY(-2px);
+}
+.admin-stats-detail-btn svg{
+  color:var(--gold);
+  flex-shrink:0;
+}
+.admin-stats-detail-btn h3{
+  font-size:16px;font-weight:800;color:var(--navy);margin:0 0 4px;
+}
+.admin-stats-detail-btn p{
+  font-size:13px;color:var(--gray);margin:0;
+}
+
 /* Detailed Stats */
 .admin-stats-detailed{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:20px;
@@ -1739,95 +1765,268 @@ body:has(.landing-main){padding-bottom:0;}
   text-align:center;padding:24px;color:var(--gray);
 }
 
+/* Modal Styles */
+.admin-modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;
+  align-items:center;justify-content:center;z-index:1000;padding:20px;
+  animation:fadeIn .2s ease;
+}
+@keyframes fadeIn{
+  from{opacity:0;}
+  to{opacity:1;}
+}
+.admin-modal-content{
+  background:var(--white);border-radius:16px;max-width:900px;
+  width:100%;max-height:90vh;overflow:hidden;
+  box-shadow:0 10px 40px rgba(0,0,0,.2);
+  animation:slideUp .3s ease;
+}
+@keyframes slideUp{
+  from{opacity:0;transform:translateY(20px);}
+  to{opacity:1;transform:translateY(0);}
+}
+.admin-modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 24px;border-bottom:1px solid var(--lgray);
+}
+.admin-modal-header h3{
+  font-size:20px;font-weight:800;color:var(--navy);margin:0;
+}
+.admin-modal-close{
+  display:flex;align-items:center;justify-content:center;
+  width:36px;height:36px;border-radius:8px;border:none;background:var(--off);
+  cursor:pointer;color:var(--gray);transition:all .2s;
+}
+.admin-modal-close:hover{
+  background:var(--lgray);color:var(--navy);
+}
+.admin-modal-body{
+  padding:24px;overflow-y:auto;max-height:calc(90vh - 80px);
+}
+
+@media (min-width:769px){
+  .admin-stats-detailed-buttons{
+    display:grid;
+  }
+}
+
 @media (max-width:768px){
-  .admin-stats-header{flex-direction:column;align-items:flex-start;gap:12px;}
-  .admin-stats-actions{flex-wrap:wrap;}
-  .admin-stats-metrics{grid-template-columns:repeat(2,1fr);gap:12px;}
-  .admin-stats-charts{grid-template-columns:1fr;gap:16px;}
-  .admin-stats-rankings{grid-template-columns:1fr;gap:16px;}
-  .admin-stats-detailed{grid-template-columns:1fr;gap:16px;}
+  /* Hide less important sections on mobile */
+  .admin-stats-rankings{
+    display:none;
+  }
+  .admin-stats-detailed-buttons{
+    display:none;
+  }
+  
+  /* Mobile modal optimizations */
+  .admin-modal-overlay{
+    padding:10px;
+  }
+  .admin-modal-content{
+    max-height:95vh;
+  }
+  .admin-modal-header{
+    padding:16px 20px;
+  }
+  .admin-modal-header h3{
+    font-size:18px;
+  }
+  .admin-modal-body{
+    padding:16px 20px;
+    max-height:calc(95vh - 70px);
+  }
+  .admin-detailed-grid{
+    grid-template-columns:1fr;
+  }
+  
+  /* Simplified header */
+  .admin-stats-header{
+    flex-direction:column;align-items:flex-start;gap:12px;
+    margin-bottom:16px;
+  }
+  .admin-stats-title{
+    font-size:20px;
+  }
+  .admin-stats-subtitle{
+    font-size:12px;
+    display:none;
+  }
+  .admin-stats-actions{
+    width:100%;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .admin-stats-btn{
+    font-size:12px;
+    padding:8px 12px;
+    text-align:center;
+  }
+  
+  /* Simplified filters - show only essential ones */
   .admin-stats-filters{
     flex-direction:column;
-    gap:16px;
+    gap:12px;
     padding:16px;
+    margin-bottom:16px;
   }
   .admin-filter-group{
     min-width:100%;
   }
   .admin-filter-date{
-    flex-direction:column;
-    gap:12px;
+    display:none;
   }
-  .admin-filter-date .admin-filter-input{
-    width:100%;
-  }
-  .admin-bar-chart{height:140px;}
-  .admin-detailed-grid{grid-template-columns:1fr;}
-  .admin-metric-card{
-    padding:16px;
-    gap:12px;
-  }
-  .admin-metric-icon{
-    width:40px;
-    height:40px;
-  }
-  .admin-metric-value{
-    font-size:24px;
-  }
-  .admin-chart-card{
-    padding:16px;
-  }
-  .admin-ranking-card{
-    padding:16px;
-  }
-  .admin-detailed-card{
-    padding:16px;
-  }
-  .admin-stats-table-card{
-    padding:16px;
-  }
-}
-
-@media (max-width:480px){
+  
+  /* Streamlined metrics - 2x2 grid, show only 4 key metrics */
   .admin-stats-metrics{
-    grid-template-columns:1fr;
+    grid-template-columns:repeat(2,1fr);
     gap:12px;
-  }
-  .admin-filter-input,
-  .admin-filter-select{
-    font-size:13px;
-    padding:10px 12px;
-  }
-  .admin-stats-title{
-    font-size:22px;
-  }
-  .admin-stats-subtitle{
-    font-size:13px;
-  }
-  .admin-stats-btn{
-    padding:8px 12px;
-    font-size:13px;
+    margin-bottom:16px;
   }
   .admin-metric-card{
     padding:14px;
+    gap:10px;
+  }
+  .admin-metric-icon{
+    width:36px;
+    height:36px;
+  }
+  .admin-metric-icon svg{
+    width:18px;
+    height:18px;
   }
   .admin-metric-value{
     font-size:20px;
   }
-  .admin-chart-card,
-  .admin-ranking-card,
-  .admin-detailed-card,
+  .admin-metric-label{
+    font-size:11px;
+  }
+  
+  /* Hide less important metric cards on mobile */
+  .admin-metric-card-tertiary,
+  .admin-metric-card-quinary,
+  .admin-metric-card-senary{
+    display:none;
+  }
+  
+  /* Simplified charts */
+  .admin-stats-charts{
+    grid-template-columns:1fr;
+    gap:12px;
+    margin-bottom:16px;
+  }
+  .admin-chart-card{
+    padding:14px;
+  }
+  .admin-chart-header h3{
+    font-size:15px;
+  }
+  .admin-chart-badge{
+    font-size:9px;
+    padding:3px 8px;
+  }
+  .admin-bar-chart{
+    height:120px;
+  }
+  .admin-donut-chart{
+    display:flex;
+    justify-content:center;
+  }
+  .admin-legend{
+    margin-top:12px;
+  }
+  .admin-legend-item{
+    font-size:12px;
+  }
+  
+  /* Simplified table */
   .admin-stats-table-card{
     padding:14px;
   }
+  .admin-stats-table-header h3{
+    font-size:15px;
+  }
+  .admin-stats-table-count{
+    font-size:11px;
+  }
+  .admin-stats-table{
+    font-size:12px;
+  }
+  .admin-stats-table th,
+  .admin-stats-table td{
+    padding:8px 10px;
+  }
+}
+
+@media (max-width:480px){
+  /* Single column metrics on very small screens */
+  .admin-stats-metrics{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  
+  /* Further simplified header */
+  .admin-stats-title{
+    font-size:18px;
+  }
+  .admin-stats-actions{
+    grid-template-columns:1fr;
+  }
+  
+  /* Smaller inputs */
+  .admin-filter-input,
+  .admin-filter-select{
+    font-size:12px;
+    padding:10px 12px;
+  }
+  
+  /* Compact metric cards */
+  .admin-metric-card{
+    padding:12px;
+    gap:8px;
+  }
+  .admin-metric-icon{
+    width:32px;
+    height:32px;
+  }
+  .admin-metric-icon svg{
+    width:16px;
+    height:16px;
+  }
+  .admin-metric-value{
+    font-size:18px;
+  }
+  .admin-metric-label{
+    font-size:10px;
+  }
+  
+  /* Compact charts */
+  .admin-chart-card{
+    padding:12px;
+  }
+  .admin-chart-header h3{
+    font-size:14px;
+  }
+  .admin-bar-chart{
+    height:100px;
+  }
+  
+  /* Compact table */
+  .admin-stats-table-card{
+    padding:12px;
+  }
+  .admin-stats-table{
+    font-size:11px;
+  }
+  .admin-stats-table th,
+  .admin-stats-table td{
+    padding:6px 8px;
+  }
+  
+  /* Compact filters */
   .admin-stats-filters{
-    padding:14px;
-    gap:14px;
-  }
-  .admin-filter-group{
-    margin-bottom:0;
-  }
-  .admin-filter-date{
+    padding:12px;
     gap:10px;
   }
 }
