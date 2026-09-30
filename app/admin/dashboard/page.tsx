@@ -391,7 +391,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const token = localStorage.getItem('jopesa_admin_token');
     if (!token) {
-      router.push('/admin');
+      router.replace('/admin');
       return;
     }
 
@@ -410,7 +410,14 @@ export default function AdminDashboard() {
           fetch(`${apiBaseUrl}/contributions?skip=0&take=200`, { headers }),
         ]);
 
-        if (!usersRes.ok || !branchesRes.ok || !eventsRes.ok || !announcementsRes.ok || !documentsRes.ok || !batchesRes.ok) {
+        const requiredResponses = [usersRes, branchesRes, eventsRes, announcementsRes, documentsRes, batchesRes];
+        if (requiredResponses.some((response) => response.status === 401)) {
+          localStorage.removeItem('jopesa_admin_token');
+          router.replace('/admin');
+          return;
+        }
+
+        if (requiredResponses.some((response) => !response.ok)) {
           throw new Error('Dashboard fetch failed');
         }
 
@@ -510,6 +517,7 @@ export default function AdminDashboard() {
           title: String((announcement as { title?: unknown }).title ?? ''),
           content: String((announcement as { content?: unknown }).content ?? ''),
           type: ((announcement as { type?: string }).type || 'NEWS') as Announcement['type'],
+          imageUrl: String((announcement as { image?: unknown }).image ?? (announcement as { imageUrl?: unknown }).imageUrl ?? ''),
           createdAt: (announcement as { createdAt?: string }).createdAt ? new Date((announcement as { createdAt?: string }).createdAt as string).toLocaleDateString() : '',
           createdBy: String((announcement as { createdBy?: unknown }).createdBy || 'Admin'),
         })));
@@ -544,8 +552,7 @@ export default function AdminDashboard() {
         }
       } catch (error) {
         console.error('Admin dashboard fetch failed:', error);
-        localStorage.removeItem('jopesa_admin_token');
-        router.push('/admin');
+        showToastMessage('Dashboard data could not be loaded. Your admin session is still active.', 'error');
       }
     };
 
@@ -582,7 +589,7 @@ export default function AdminDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem('jopesa_admin_token');
-    router.push('/admin');
+    router.replace('/admin');
   };
 
   const showToastMessage = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
@@ -617,7 +624,7 @@ export default function AdminDashboard() {
   };
 
   const handleCreateEvent = async () => {
-    if (!eventData.title || !eventData.startDate || !eventData.endDate || !eventData.location || eventData.batchIds.length === 0) {
+    if (!eventData.title || !eventData.startDate || !eventData.endDate || !eventData.location) {
       showToastMessage('Please complete the required event fields before saving.', 'warning');
       return;
     }
@@ -664,7 +671,8 @@ export default function AdminDashboard() {
           body: JSON.stringify(payload),
         });
         if (!response.ok) {
-          throw new Error('Unable to update event');
+          const payload: { message?: string | string[] } = await response.json().catch(() => ({}));
+          throw new Error(Array.isArray(payload.message) ? payload.message.join(' ') : payload.message || 'Unable to update event');
         }
         const updatedEvent = await response.json();
         setEvents(events.map((event) => (event.id === editingEventId ? {
@@ -682,7 +690,8 @@ export default function AdminDashboard() {
           body: JSON.stringify(payload),
         });
         if (!response.ok) {
-          throw new Error('Unable to create event');
+          const payload: { message?: string | string[] } = await response.json().catch(() => ({}));
+          throw new Error(Array.isArray(payload.message) ? payload.message.join(' ') : payload.message || 'Unable to create event');
         }
         const createdEvent = await response.json();
         setEvents([{
@@ -694,7 +703,8 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Event save failed:', error);
-      showToastMessage('The event could not be saved. Please try again.', 'error');
+      showToastMessage(error instanceof Error ? error.message : 'The event could not be saved. Please try again.', 'error');
+      return;
     } finally {
       setIsSavingEvent(false);
     }
@@ -982,6 +992,16 @@ export default function AdminDashboard() {
       return;
     }
 
+    if (announcementData.imageUrl.trim()) {
+      try {
+        const imageUrl = new URL(announcementData.imageUrl);
+        if (imageUrl.protocol !== 'http:' && imageUrl.protocol !== 'https:') throw new Error('Invalid image URL');
+      } catch {
+        showToastMessage('Enter a valid public image URL beginning with http:// or https://.', 'warning');
+        return;
+      }
+    }
+
     setIsSavingAnnouncement(true);
 
     try {
@@ -1004,6 +1024,7 @@ export default function AdminDashboard() {
         setAnnouncements(announcements.map(a => a.id === editingAnnouncementId ? {
           ...a,
           ...updatedAnnouncement,
+          imageUrl: updatedAnnouncement.image || announcementData.imageUrl,
           createdAt: updatedAnnouncement.createdAt ? new Date(updatedAnnouncement.createdAt).toLocaleDateString() : a.createdAt,
         } : a));
         setEditingAnnouncementId(null);
@@ -1024,6 +1045,7 @@ export default function AdminDashboard() {
         }
         const newAnnouncement = await response.json();
         setAnnouncements([{ ...newAnnouncement,
+          imageUrl: newAnnouncement.image || announcementData.imageUrl,
           createdAt: newAnnouncement.createdAt ? new Date(newAnnouncement.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
         }, ...announcements]);
       }
@@ -1302,7 +1324,7 @@ export default function AdminDashboard() {
             <div style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Contributions</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--navy)' }}>
-                {selectedPaymentUser.totalAmount.toLocaleString()} XAF
+                {selectedPaymentUser.totalAmount.toLocaleString()} FCFA
               </div>
             </div>
 
@@ -1334,7 +1356,7 @@ export default function AdminDashboard() {
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontWeight: 700, color: 'var(--navy)', fontSize: 14 }}>
-                          {(payment.amount || 0).toLocaleString()} XAF
+                          {(payment.amount || 0).toLocaleString()} FCFA
                         </div>
                         <div style={{ 
                           fontSize: 11, 
@@ -2007,7 +2029,7 @@ export default function AdminDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px', width: '100%' }} className="admin-grid-2">
                   <div className="fg"><label>Event Title *</label><input type="text" value={eventData.title} onChange={(e) => setEventData({ ...eventData, title: e.target.value })} placeholder="e.g. Annual Reunion" /></div>
                   <div className="fg"><label>Location *</label><input type="text" value={eventData.location} onChange={(e) => setEventData({ ...eventData, location: e.target.value })} placeholder="e.g. JOPACC Campus" /></div>
-                  <div className="fg"><label>Batch Numbers *</label>
+                  <div className="fg"><label>Batch Numbers (optional)</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <button
@@ -2271,9 +2293,16 @@ export default function AdminDashboard() {
                   <div className="fg"><label>Type</label><div className="sel-wrap"><select value={announcementData.type} onChange={(e) => setAnnouncementData({ ...announcementData, type: e.target.value as 'NEWS' | 'UPDATE' | 'EVENT' | 'OPPORTUNITY' | 'WARNING' })}><option value="NEWS">News</option><option value="UPDATE">Update</option><option value="EVENT">Event</option><option value="OPPORTUNITY">Opportunity</option><option value="WARNING">Warning</option></select></div></div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
-                  <div className="fg"><label>Image URL (optional)</label><input type="url" value={announcementData.imageUrl} onChange={(e) => setAnnouncementData({ ...announcementData, imageUrl: e.target.value })} placeholder="https://example.com/image.jpg" /></div>
+                  <div className="fg">
+                    <label>Image URL (optional)</label>
+                    <input type="url" value={announcementData.imageUrl} onChange={(e) => setAnnouncementData({ ...announcementData, imageUrl: e.target.value })} placeholder="https://example.com/image.jpg" />
+                    <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Paste a publicly accessible image link. The image will be attached when you post.</div>
+                  </div>
                   <div className="fg" style={{ display: 'flex', alignItems: 'flex-end' }}><label style={{ width: '100%', marginBottom: 8 }}>Pin announcement</label><div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><input type="checkbox" checked={announcementData.isPinned} onChange={(e) => setAnnouncementData({ ...announcementData, isPinned: e.target.checked })} /> <span style={{ color: 'var(--gray)', fontSize: 13 }}>Pinned</span></div></div>
                 </div>
+                {announcementData.imageUrl && (
+                  <img src={announcementData.imageUrl} alt="Announcement image preview" style={{ display: 'block', width: '100%', maxHeight: '220px', objectFit: 'cover', borderRadius: '8px', marginBottom: '16px' }} />
+                )}
                 <div className="fg"><label>Content *</label><textarea value={announcementData.content} onChange={(e) => setAnnouncementData({ ...announcementData, content: e.target.value })} placeholder="Announcement details..." style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit', minHeight: '100px', resize: 'vertical' }} /></div>
                 <button className="btn btn-navy" onClick={handleSaveAnnouncement} disabled={isSavingAnnouncement} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{isSavingAnnouncement ? <><LoaderCircle size={16} className="loading-spinner" /> {editingAnnouncementId ? 'Updating Announcement...' : 'Posting Announcement...'}</> : <>{editingAnnouncementId ? 'Update Announcement →' : 'Post Announcement →'}</>}</button>
               </div>
@@ -2298,6 +2327,7 @@ export default function AdminDashboard() {
                       <button className="del-btn" onClick={() => openDeleteModal('announcement', announcement.id, 'Delete announcement?', 'This action will remove the announcement from the dashboard.') }><Trash2 size={14} /></button>
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)', marginBottom: 5 }}>{announcement.title}</div>
+                    {(announcement.imageUrl || announcement.image) && <img src={announcement.imageUrl || announcement.image} alt="" style={{ display: 'block', width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px' }} />}
                     <div style={{ fontSize: 14, color: 'var(--dark)', lineHeight: 1.5, marginBottom: 8 }}>{announcement.content}</div>
                     <div style={{ fontSize: 12, color: 'var(--gray)' }}>{announcement.createdAt} · {announcement.type} · by {announcement.createdBy}</div>
                   </div>
@@ -2694,7 +2724,7 @@ export default function AdminDashboard() {
                     {contributionData.installments.map((installment, index) => (
                       <div key={installment.id} className="installment-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '8px', alignItems: 'center', padding: '12px', background: 'var(--off)', borderRadius: '8px', border: '1px solid var(--lgray)' }}>
                         <input type="text" value={installment.label} onChange={(e) => { const updated = [...contributionData.installments]; updated[index].label = e.target.value; setContributionData({ ...contributionData, installments: updated }); }} placeholder="Label (e.g., First Installment)" style={{ width: '100%', padding: '12px 14px', border: '2px solid var(--lgray)', borderRadius: '8px', fontSize: '14px' }} />
-                        <input type="number" value={installment.amount} onChange={(e) => { const updated = [...contributionData.installments]; updated[index].amount = parseFloat(e.target.value) || 0; setContributionData({ ...contributionData, installments: updated }); }} placeholder="Amount" style={{ width: '120px', padding: '12px 14px', border: '2px solid var(--lgray)', borderRadius: '8px', fontSize: '14px' }} />
+                        <input type="number" min="1" step="1" required value={installment.amount || ''} onChange={(e) => { const updated = [...contributionData.installments]; updated[index].amount = parseFloat(e.target.value) || 0; setContributionData({ ...contributionData, installments: updated }); }} placeholder="Amount (FCFA)" aria-label={`Amount in FCFA for ${installment.label}`} style={{ width: '140px', padding: '12px 14px', border: '2px solid var(--lgray)', borderRadius: '8px', fontSize: '14px' }} />
                         <input type="date" value={installment.dueDate} onChange={(e) => { const updated = [...contributionData.installments]; updated[index].dueDate = e.target.value; setContributionData({ ...contributionData, installments: updated }); }} style={{ width: '180px', padding: '12px 14px', border: '2px solid var(--lgray)', borderRadius: '8px', fontSize: '14px' }} />
                         <button onClick={() => { const updated = contributionData.installments.filter((_, i) => i !== index); setContributionData({ ...contributionData, installments: updated }); }} style={{ padding: '10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><Trash2 size={16} /></button>
                       </div>
@@ -2704,6 +2734,10 @@ export default function AdminDashboard() {
                 </div>
                 <div className="admin-grid-2" style={{ gap: '12px', marginTop: '16px' }}>
                   <button className="btn btn-navy" onClick={async () => {
+                    if (contributionData.installments.some((installment) => !Number.isFinite(installment.amount) || installment.amount <= 0)) {
+                      showToastMessage('Enter a positive FCFA amount for every installment.', 'warning');
+                      return;
+                    }
                     try {
                       setIsSavingContribution(true);
                       const payload = {
@@ -2773,7 +2807,7 @@ export default function AdminDashboard() {
                           </td>
                           <td style={{ padding: '12px 8px', fontSize: '12' }}>{contribution.type?.replace(/_/g, ' ') || 'General'}</td>
                           <td style={{ padding: '12px 8px', fontSize: '12' }}>{contribution.installments?.length || 0} installment(s)</td>
-                          <td style={{ padding: '12px 8px', fontSize: '12', fontWeight: 600 }}>${totalAmount.toFixed(2)}</td>
+                          <td style={{ padding: '12px 8px', fontSize: '12', fontWeight: 600 }}>{totalAmount.toLocaleString()} FCFA</td>
                           <td style={{ padding: '12px 8px' }}>
                             <span className={`status-badge ${String(contribution.status || 'ACTIVE').toLowerCase()}`} style={{ textTransform: 'capitalize', fontSize: '10px', padding: '2px 6px' }}>{String(contribution.status || 'ACTIVE').toLowerCase()}</span>
                           </td>
@@ -2829,7 +2863,7 @@ export default function AdminDashboard() {
                               <div style={{ fontSize: 11, color: 'var(--gray)' }}>{payment.payerEmail || ''}</div>
                             </td>
                             <td style={{ padding: '12px', fontSize: 13, fontWeight: 600 }}>
-                              ${Number(payment.amount || 0).toFixed(2)}
+                              {Number(payment.amount || 0).toLocaleString()} FCFA
                             </td>
                             <td style={{ padding: '12px', fontSize: 12 }}>
                               {payment.installmentLabel || 'N/A'}
