@@ -7,6 +7,8 @@ import { User, Event, Announcement, Document, Branch, Photo, Batch } from '@/typ
 import Toast from '@/components/Toast';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+type AdminSection = 'overview' | 'events' | 'announcements' | 'documents' | 'branches' | 'photos' | 'batches' | 'statistics' | 'registrations' | 'contributions';
+const adminSections: AdminSection[] = ['overview', 'events', 'announcements', 'documents', 'branches', 'photos', 'batches', 'statistics', 'registrations', 'contributions'];
 
 const DonutChart = ({ data, size = 180, strokeWidth = 16 }: { data: Array<{ label: string; value: number; color: string }>; size?: number; strokeWidth?: number }) => {
   const total = data.reduce((sum, item) => sum + Math.max(item.value, 0), 0) || 1;
@@ -47,7 +49,7 @@ const DonutChart = ({ data, size = 180, strokeWidth = 16 }: { data: Array<{ labe
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeSection, setActiveSection] = useState<'overview' | 'events' | 'announcements' | 'documents' | 'branches' | 'photos' | 'batches' | 'statistics' | 'registrations' | 'contributions'>('overview');
+  const [activeSection, setActiveSection] = useState<AdminSection>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -89,6 +91,30 @@ export default function AdminDashboard() {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE'
   });
   const [paymentModal, setPaymentModal] = useState<{ open: boolean; contributionId: string | null; contributionTitle: string }>({ open: false, contributionId: null, contributionTitle: '' });
+
+  const changeActiveSection = (section: AdminSection) => {
+    if (section === activeSection) return;
+    window.history.pushState({ ...window.history.state, adminDashboardSection: section }, '', window.location.href);
+    setActiveSection(section);
+  };
+
+  useEffect(() => {
+    window.history.replaceState({ ...window.history.state, adminDashboardSection: 'overview' }, '', window.location.href);
+
+    const handlePopState = (event: PopStateEvent) => {
+      const section = event.state?.adminDashboardSection;
+      if (typeof section === 'string' && adminSections.includes(section as AdminSection)) {
+        setActiveSection(section as AdminSection);
+        return;
+      }
+
+      setActiveSection('overview');
+      router.replace('/');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [router]);
 
   useEffect(() => {
     const loadPayments = async () => {
@@ -1457,61 +1483,61 @@ export default function AdminDashboard() {
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
           <button
-            onClick={() => { setActiveSection('overview'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('overview'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'overview' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'overview' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <Shield size={18} /> Overview
           </button>
           <button
-            onClick={() => { setActiveSection('events'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('events'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'events' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'events' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <Calendar size={18} /> Events
           </button>
           <button
-            onClick={() => { setActiveSection('announcements'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('announcements'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'announcements' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'announcements' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <Megaphone size={18} /> Announcements
           </button>
           <button
-            onClick={() => { setActiveSection('documents'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('documents'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'documents' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'documents' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <FileText size={18} /> Documents
           </button>
           <button
-            onClick={() => { setActiveSection('branches'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('branches'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'branches' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'branches' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <Users size={18} /> Branches
           </button>
           <button
-            onClick={() => { setActiveSection('batches'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('batches'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'batches' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'batches' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <GraduationCap size={18} /> Batches
           </button>
           <button
-            onClick={() => { setActiveSection('photos'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('photos'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'photos' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'photos' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <ImageIcon size={18} /> Photos
           </button>
           <button
-            onClick={() => { setActiveSection('registrations'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('registrations'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'registrations' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'registrations' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <UserPlus size={18} /> Registrations
           </button>
           <button
-            onClick={() => { setActiveSection('contributions'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('contributions'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'contributions' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'contributions' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <DollarSign size={18} /> Contributions
           </button>
      <button
-            onClick={() => { setActiveSection('statistics'); setSidebarOpen(false); }}
+            onClick={() => { changeActiveSection('statistics'); setSidebarOpen(false); }}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none', background: activeSection === 'statistics' ? 'rgba(200,150,12,0.2)' : 'transparent', color: activeSection === 'statistics' ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
           >
             <BarChart3 size={18} /> Statistics
@@ -1981,19 +2007,19 @@ export default function AdminDashboard() {
             <div className="card" style={{ gridColumn: '1 / -1' }}>
               <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)', marginBottom: '16px' }}>Quick Actions</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }} className="admin-grid-4">
-                <button onClick={() => setActiveSection('events')} style={{ padding: '16px', background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => changeActiveSection('events')} style={{ padding: '16px', background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <Calendar size={24} />
                   <span>Create Event</span>
                 </button>
-                <button onClick={() => setActiveSection('announcements')} style={{ padding: '16px', background: 'var(--gold)', color: 'var(--navy)', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => changeActiveSection('announcements')} style={{ padding: '16px', background: 'var(--gold)', color: 'var(--navy)', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <Megaphone size={24} />
                   <span>Post Update</span>
                 </button>
-                <button onClick={() => setActiveSection('documents')} style={{ padding: '16px', background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => changeActiveSection('documents')} style={{ padding: '16px', background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <FileIcon size={24} />
                   <span>Upload Doc</span>
                 </button>
-                <button onClick={() => setActiveSection('branches')} style={{ padding: '16px', background: 'var(--gold)', color: 'var(--navy)', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => changeActiveSection('branches')} style={{ padding: '16px', background: 'var(--gold)', color: 'var(--navy)', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <Building2 size={24} />
                   <span>Add Branch</span>
                 </button>
