@@ -5,10 +5,18 @@ import { useRouter } from 'next/navigation';
 import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu, MapPin, UserPlus, Clock, Image as ImageIcon, ExternalLink, LoaderCircle, GraduationCap, BarChart3, DollarSign, CreditCard } from 'lucide-react';
 import { User, Event, Announcement, Document, Branch, Photo, Batch } from '@/types';
 import Toast from '@/components/Toast';
+import PhotoCarousel, { CarouselSlide } from '@/components/alumni/PhotoCarousel';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 type AdminSection = 'overview' | 'events' | 'announcements' | 'documents' | 'branches' | 'photos' | 'batches' | 'statistics' | 'registrations' | 'contributions';
 const adminSections: AdminSection[] = ['overview', 'events', 'announcements', 'documents', 'branches', 'photos', 'batches', 'statistics', 'registrations', 'contributions'];
+const isPastEvent = (event: Event, currentTime: number) => {
+  if (event.status === 'COMPLETED' || event.status === 'CANCELLED' || event.status === 'past') return true;
+  const endDate = new Date(event.endDate || event.startDate);
+  if (Number.isNaN(endDate.getTime())) return false;
+  endDate.setHours(23, 59, 59, 999);
+  return endDate.getTime() < currentTime;
+};
 
 const DonutChart = ({ data, size = 180, strokeWidth = 16 }: { data: Array<{ label: string; value: number; color: string }>; size?: number; strokeWidth?: number }) => {
   const total = data.reduce((sum, item) => sum + Math.max(item.value, 0), 0) || 1;
@@ -50,6 +58,7 @@ const DonutChart = ({ data, size = 180, strokeWidth = 16 }: { data: Array<{ labe
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<AdminSection>('overview');
+  const [dashboardNow, setDashboardNow] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -99,6 +108,7 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
+    const nowTimer = window.setTimeout(() => setDashboardNow(Date.now()), 0);
     window.history.replaceState({ ...window.history.state, adminDashboardSection: 'overview' }, '', window.location.href);
 
     const handlePopState = (event: PopStateEvent) => {
@@ -113,7 +123,10 @@ export default function AdminDashboard() {
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    return () => {
+      window.clearTimeout(nowTimer);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -285,6 +298,15 @@ export default function AdminDashboard() {
   };
 
   const filteredEventsByDate = events.filter((event) => isWithinDateRange(event.startDate, dateRange.start, dateRange.end));
+  const eventCarouselSlides: CarouselSlide[] = events.map((event) => ({
+    id: event.id,
+    url: event.image || event.images?.[0] || photos.find((photo) => photo.eventId === event.id)?.url || '',
+    title: event.title,
+    eventId: event.id,
+    status: isPastEvent(event, dashboardNow ?? 0) ? 'Past' : 'Upcoming',
+    date: [event.startDate, event.endDate].filter(Boolean).join(' - '),
+    location: event.location || 'Location TBA',
+  }));
 
   const roleDistribution = [
     { label: 'Alumni', value: statsSummary.totalAlumni, color: '#f9c74f' },
@@ -655,12 +677,32 @@ export default function AdminDashboard() {
       return;
     }
 
-    setIsSavingEvent(true);
+    const submittedEventData = {
+      ...eventData,
+      batchIds: [...eventData.batchIds],
+      images: [...eventData.images],
+      registrationForm: [...eventData.registrationForm],
+    };
+    const submittedImageFiles = [...eventImageFiles];
+    const submittedEditingEventId = editingEventId;
+    const restoreEventForm = () => {
+      setEventData(submittedEventData);
+      setEventImageFiles(submittedImageFiles);
+      setEditingEventId(submittedEditingEventId);
+      setShowEventForm(true);
+    };
 
-    let images = [...eventData.images];
-    if (eventImageFiles.length > 0) {
+    setIsSavingEvent(true);
+    setShowEventForm(false);
+    setEventData({ title: '', description: '', startDate: '', endDate: '', location: '', batchIds: [], isVirtual: false, meetLink: '', images: [], status: 'upcoming', registrationForm: [], eventType: 'reunion' });
+    setEventImageFiles([]);
+    setEditingEventId(null);
+    showToastMessage('Event save started in the background.', 'success');
+
+    let images = [...submittedEventData.images];
+    if (submittedImageFiles.length > 0) {
       try {
-        const uploadResult = await uploadEventImages(eventImageFiles);
+        const uploadResult = await uploadEventImages(submittedImageFiles);
         const newUrls = Array.isArray(uploadResult)
           ? uploadResult.map((item: { url?: string; secure_url?: string }) => item.url || item.secure_url || '')
           : [uploadResult.url || uploadResult.secure_url];
@@ -668,30 +710,31 @@ export default function AdminDashboard() {
       } catch (error) {
         console.error('Images upload failed:', error);
         showToastMessage('The event images could not be uploaded. Please try again.', 'error');
+        restoreEventForm();
         setIsSavingEvent(false);
         return;
       }
     }
 
     const payload = {
-      title: eventData.title,
-      description: eventData.description,
-      startDate: new Date(eventData.startDate).toISOString(),
-      endDate: new Date(eventData.endDate).toISOString(),
-      location: eventData.location,
-      batchIds: eventData.batchIds,
-      isVirtual: eventData.isVirtual,
-      meetLink: eventData.meetLink || undefined,
+      title: submittedEventData.title,
+      description: submittedEventData.description,
+      startDate: new Date(submittedEventData.startDate).toISOString(),
+      endDate: new Date(submittedEventData.endDate).toISOString(),
+      location: submittedEventData.location,
+      batchIds: submittedEventData.batchIds,
+      isVirtual: submittedEventData.isVirtual,
+      meetLink: submittedEventData.meetLink || undefined,
       image: images.length > 0 ? images[0] : undefined,
       images: images.length > 0 ? images : undefined,
-      eventType: eventData.eventType,
-      registrationForm: eventData.registrationForm.length > 0 ? eventData.registrationForm : undefined,
-      status: eventData.status === 'past' ? 'COMPLETED' : 'PUBLISHED',
+      eventType: submittedEventData.eventType,
+      registrationForm: submittedEventData.registrationForm.length > 0 ? submittedEventData.registrationForm : undefined,
+      status: submittedEventData.status === 'past' ? 'COMPLETED' : 'PUBLISHED',
     };
 
     try {
-      if (editingEventId) {
-        const response = await fetch(`${apiBaseUrl}/events/${editingEventId}`, {
+      if (submittedEditingEventId) {
+        const response = await fetch(`${apiBaseUrl}/events/${submittedEditingEventId}`, {
           method: 'PUT',
           headers: getAuthHeaders(adminToken),
           body: JSON.stringify(payload),
@@ -701,14 +744,13 @@ export default function AdminDashboard() {
           throw new Error(Array.isArray(payload.message) ? payload.message.join(' ') : payload.message || 'Unable to update event');
         }
         const updatedEvent = await response.json();
-        setEvents(events.map((event) => (event.id === editingEventId ? {
+        setEvents((previous) => previous.map((event) => (event.id === submittedEditingEventId ? {
           ...event,
           ...updatedEvent,
           status: updatedEvent.status === 'COMPLETED' || updatedEvent.status === 'CANCELLED' ? 'past' : 'upcoming',
           createdAt: updatedEvent.createdAt ? new Date(updatedEvent.createdAt).toLocaleDateString() : event.createdAt,
         } : event)));
         showToastMessage('Event updated successfully.', 'success');
-        setEditingEventId(null);
       } else {
         const response = await fetch(`${apiBaseUrl}/events`, {
           method: 'POST',
@@ -720,24 +762,22 @@ export default function AdminDashboard() {
           throw new Error(Array.isArray(payload.message) ? payload.message.join(' ') : payload.message || 'Unable to create event');
         }
         const createdEvent = await response.json();
-        setEvents([{
+        setEvents((previous) => [{
           ...createdEvent,
           status: createdEvent.status === 'COMPLETED' || createdEvent.status === 'CANCELLED' ? 'past' : 'upcoming',
           createdAt: createdEvent.createdAt ? new Date(createdEvent.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
-        }, ...events]);
+        }, ...previous]);
         showToastMessage('Event created successfully.', 'success');
       }
     } catch (error) {
       console.error('Event save failed:', error);
       showToastMessage(error instanceof Error ? error.message : 'The event could not be saved. Please try again.', 'error');
+      restoreEventForm();
       return;
     } finally {
       setIsSavingEvent(false);
     }
 
-    setEventData({ title: '', description: '', startDate: '', endDate: '', location: '', batchIds: [], isVirtual: false, meetLink: '', images: [], status: 'upcoming', registrationForm: [], eventType: 'reunion' });
-    setEventImageFiles([]);
-    setShowEventForm(false);
   };
 
   const handleConfirmDelete = async () => {
@@ -912,9 +952,18 @@ export default function AdminDashboard() {
       return;
     }
 
+    const eventId = selectedEventId;
+    const files = [...photoFiles];
+    const previewUrls = [...photoPreviewUrls];
     try {
       setUploading(true);
-      const uploadResult = await uploadPhotoFiles(photoFiles);
+      setShowPhotoForm(false);
+      setPhotoFiles([]);
+      setPhotoPreviewUrls([]);
+      setSelectedEventId('');
+      showToastMessage('Photo upload started in the background.', 'success');
+
+      const uploadResult = await uploadPhotoFiles(files);
       const uploadedItems = Array.isArray(uploadResult) ? uploadResult : [uploadResult];
       const urls = uploadedItems
         .map((item: { url?: string; secure_url?: string }) => item.url || item.secure_url || '')
@@ -931,7 +980,7 @@ export default function AdminDashboard() {
         method: 'POST',
         headers: getAuthHeaders(adminToken),
         body: JSON.stringify({
-          eventId: selectedEventId,
+          eventId,
           urls,
           publicIds: publicIds.length === urls.length ? publicIds : undefined,
         }),
@@ -946,21 +995,21 @@ export default function AdminDashboard() {
       const photoList = Array.isArray(createdPhotos) ? createdPhotos : normalizeList(createdPhotos);
       const mapped: Photo[] = photoList.map((photo: Record<string, unknown>) => ({
         id: String(photo.id ?? ''),
-        eventId: String(photo.eventId ?? selectedEventId),
+        eventId: String(photo.eventId ?? eventId),
         url: String(photo.url ?? ''),
         uploadedAt: photo.createdAt
           ? new Date(String(photo.createdAt)).toLocaleDateString()
           : new Date().toLocaleDateString(),
       }));
 
-      setPhotos([...mapped, ...photos]);
-      setPhotoFiles([]);
-      setPhotoPreviewUrls([]);
-      setSelectedEventId('');
-      setShowPhotoForm(false);
+      setPhotos((previous) => [...mapped, ...previous]);
       showToastMessage('Photos uploaded successfully.', 'success');
     } catch (error) {
       console.error('Photo upload failed:', error);
+      setPhotoFiles(files);
+      setPhotoPreviewUrls(previewUrls);
+      setSelectedEventId(eventId);
+      setShowPhotoForm(true);
       showToastMessage(
         error instanceof Error ? error.message : 'Failed to upload photos.',
         'error',
@@ -1092,31 +1141,37 @@ export default function AdminDashboard() {
       return;
     }
 
+    const data = { ...documentData };
+    const file = documentFile;
     setIsCreatingDocument(true);
+    setShowDocumentForm(false);
+    setDocumentData({ title: '', description: '', category: 'General', fileType: 'OTHER', tags: '' });
+    setDocumentFile(null);
+    showToastMessage('Document upload started in the background.', 'success');
 
     try {
-      const uploadResponse = await uploadDocumentFile(documentFile);
+      const uploadResponse = await uploadDocumentFile(file);
       const fileUrl = uploadResponse.url || uploadResponse.secure_url;
-      const fileType = documentData.fileType;
-      const fileSize = documentFile.size;
+      const fileType = data.fileType;
+      const fileSize = file.size;
       const response = await fetch(`${apiBaseUrl}/documents`, {
         method: 'POST',
         headers: getAuthHeaders(adminToken),
         body: JSON.stringify({
-          title: documentData.title,
-          description: documentData.description || undefined,
+          title: data.title,
+          description: data.description || undefined,
           fileUrl,
           fileType,
           fileSize,
-          category: documentData.category,
-          tags: documentData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+          category: data.category,
+          tags: data.tags.split(',').map(tag => tag.trim()).filter(Boolean),
         }),
       });
       if (!response.ok) {
         throw new Error('Unable to create document');
       }
       const createdDoc = await response.json();
-      setDocuments([{
+      setDocuments((previous) => [{
         id: createdDoc.id,
         title: createdDoc.title,
         type: createdDoc.fileType.toLowerCase(),
@@ -1127,12 +1182,13 @@ export default function AdminDashboard() {
         fileType: createdDoc.fileType,
         fileSize: createdDoc.fileSize,
         tags: createdDoc.tags || [],
-      }, ...documents]);
-      setDocumentData({ title: '', description: '', category: 'General', fileType: 'OTHER', tags: '' });
-      setDocumentFile(null);
-      setShowDocumentForm(false);
+      }, ...previous]);
+      showToastMessage('Document uploaded successfully.', 'success');
     } catch (error) {
       console.error('Document upload failed:', error);
+      setDocumentData(data);
+      setDocumentFile(file);
+      setShowDocumentForm(true);
       showToastMessage('The document could not be uploaded. Please try again.', 'error');
     } finally {
       setIsCreatingDocument(false);
@@ -1976,20 +2032,7 @@ export default function AdminDashboard() {
 
         {activeSection === 'overview' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }} className="admin-grid-2">
-            <div className="card">
-              <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)', marginBottom: '16px' }}>Recent Activity</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {events.slice(0, 3).map(event => (
-                  <div key={event.id} style={{ padding: '12px', background: 'var(--off)', borderRadius: '8px', border: '1px solid var(--lgray)' }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--navy)', marginBottom: '4px' }}>{event.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--gray)' }}>{event.startDate} · {event.location}</div>
-                  </div>
-                ))}
-                {events.length === 0 && (
-                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray)', fontSize: 14 }}>No recent events</div>
-                )}
-              </div>
-            </div>
+            <div style={{ minWidth: 0 }}><PhotoCarousel slides={eventCarouselSlides} /></div>
             <div className="card">
               <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)', marginBottom: '16px' }}>Recent Announcements</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

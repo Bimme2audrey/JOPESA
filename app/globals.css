@@ -2372,14 +2372,26 @@ body:has(.landing-main){padding-bottom:0;}
   
   /* Alumni contributions page mobile */
   .contributions-grid{
-    grid-template-columns:1fr !important;
+    grid-template-columns:minmax(0,1fr) !important;
+  }
+  .contributions-grid > *,
+  .contribution-card,
+  .payment-panel{
+    min-width:0;
+    box-sizing:border-box;
   }
   .payment-panel{
     position:static !important;
     margin-top:24px;
+    width:100%;
   }
   .contribution-card{
     padding:16px !important;
+    width:100%;
+    overflow-wrap:anywhere;
+  }
+  .contribution-card > div{
+    min-width:0;
   }
   
   /* Admin contributions page mobile */
