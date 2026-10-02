@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, User, Phone, Eye, EyeOff, GraduationCap, Building2 } from 'lucide-react';
-import { Button, Input, ListBox, Select } from '@heroui/react';
+import { Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
+import { Button } from '@heroui/react';
 import AuthCard from '@/components/AuthCard';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -123,7 +123,7 @@ export default function AlumniRegisterPage() {
     >
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>First Name</label>
-        <Input
+        <input
           type="text"
           value={firstName}
           onChange={(event) => setFirstName(event.target.value)}
@@ -134,7 +134,7 @@ export default function AlumniRegisterPage() {
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Last Name</label>
-        <Input
+        <input
           type="text"
           value={lastName}
           onChange={(event) => setLastName(event.target.value)}
@@ -145,7 +145,7 @@ export default function AlumniRegisterPage() {
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Email Address</label>
-        <Input
+        <input
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -156,7 +156,7 @@ export default function AlumniRegisterPage() {
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Phone Number</label>
-        <Input
+        <input
           type="tel"
           value={phone}
           onChange={(event) => setPhone(event.target.value)}
@@ -166,61 +166,27 @@ export default function AlumniRegisterPage() {
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Batch</label>
-        <Select
-          aria-label="Batch"
-          selectedKey={batchId || undefined}
-          onSelectionChange={(key) => {
-            setBatchId(String(key ?? ''));
-          }}
-          isRequired
-          placeholder="Select a batch"
-        >
-          <Select.Trigger>
-            <GraduationCap size={18} style={{ color: 'var(--gray)' }} />
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {batchOptions.map((batch) => (
-                <ListBox.Item key={batch.id} id={batch.id}>
-                  {batch.name || `Batch ${batch.year ?? ''}`}
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+        <select aria-label="Batch" value={batchId} onChange={(event) => setBatchId(event.target.value)} required>
+          <option value="" disabled>Select a batch</option>
+          {batchOptions.map((batch) => (
+            <option key={batch.id} value={batch.id}>{batch.name || `Batch ${batch.year ?? ''}`}</option>
+          ))}
+        </select>
       </div>
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Branch</label>
-        <Select
-          aria-label="Branch"
-          selectedKey={branchId || undefined}
-          onSelectionChange={(key) => {
-            setBranchId(String(key ?? ''));
-          }}
-          isRequired
-          placeholder="Select a branch"
-        >
-          <Select.Trigger>
-            <Building2 size={18} style={{ color: 'var(--gray)' }} />
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {branchOptions.map((branch) => (
-                <ListBox.Item key={branch.id} id={branch.id}>{branch.name}</ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+        <select aria-label="Branch" value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
+          <option value="" disabled>Select a branch</option>
+          {branchOptions.map((branch) => (
+            <option key={branch.id} value={branch.id}>{branch.name}</option>
+          ))}
+        </select>
       </div>
 
       <div className="fg" style={{ marginBottom: '24px' }}>
         <label>Password</label>
-        <Input
+        <input
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={(event) => setPassword(event.target.value)}

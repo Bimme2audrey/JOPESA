@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { Input, Button } from '@heroui/react';
+import { Button } from '@heroui/react';
 import AuthCard from '@/components/AuthCard';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -70,7 +70,7 @@ export default function AlumniLoginPage() {
     >
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Email Address</label>
-        <Input
+        <input
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -81,7 +81,7 @@ export default function AlumniLoginPage() {
 
       <div className="fg" style={{ marginBottom: '24px' }}>
         <label>Password</label>
-        <Input
+        <input
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={(event) => setPassword(event.target.value)}

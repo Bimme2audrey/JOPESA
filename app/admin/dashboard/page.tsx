@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Checkbox, Input, TextArea } from '@heroui/react';
 import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu, MapPin, UserPlus, Clock, Image as ImageIcon, ExternalLink, LoaderCircle, GraduationCap, BarChart3, DollarSign, CreditCard } from 'lucide-react';
 import { User, Event, Announcement, Document, Branch, Photo, Batch } from '@/types';
 import Toast from '@/components/Toast';
@@ -1698,7 +1697,7 @@ export default function AdminDashboard() {
             {/* Filters Section */}
             <div className="admin-stats-filters">
               <div className="admin-filter-group">
-                <Input
+                <input
                   type="text"
                   value={statisticsFilters.search}
                   onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, search: e.target.value }))}
@@ -1734,16 +1733,16 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="admin-filter-group admin-filter-date">
-                <Input 
-                  type="date" 
-                  value={dateRange.start} 
-                  onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))} 
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
                   className="admin-filter-input"
                 />
-                <Input 
-                  type="date" 
-                  value={dateRange.end} 
-                  onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))} 
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
                   className="admin-filter-input"
                 />
               </div>

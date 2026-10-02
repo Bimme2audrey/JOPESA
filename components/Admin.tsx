@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { toast } from '@heroui/react';
-import { Input, TextArea } from '@heroui/react';
 import HeroSelect from '@/components/HeroSelect';
 import { Shield, Users, Calendar, FileText, Settings, Plus, Trash2, MapPin, UserPlus, Clock } from 'lucide-react';
 import { User, Event, Announcement, Document, Branch } from '@/types';
@@ -191,11 +190,11 @@ export default function Admin({ users, events, announcements, documents, branche
           {showEventForm && (
             <div className="reg-panel open">
               <div className="divider"></div>
-              <div className="fg"><label>Event Title *</label><Input type="text" value={eventData.title} onChange={(e) => setEventData({ ...eventData, title: e.target.value })} placeholder="e.g. Annual Reunion" /></div>
-              <div className="fg"><label>Description</label><Input type="text" value={eventData.description} onChange={(e) => setEventData({ ...eventData, description: e.target.value })} placeholder="Event details..." /></div>
-              <div className="fg"><label>Start Date *</label><Input type="date" value={eventData.startDate} onChange={(e) => setEventData({ ...eventData, startDate: e.target.value })} /></div>
-              <div className="fg"><label>End Date *</label><Input type="date" value={eventData.endDate} onChange={(e) => setEventData({ ...eventData, endDate: e.target.value })} /></div>
-              <div className="fg"><label>Location *</label><Input type="text" value={eventData.location} onChange={(e) => setEventData({ ...eventData, location: e.target.value })} placeholder="e.g. JOPACC Campus" /></div>
+              <div className="fg"><label>Event Title *</label><input type="text" value={eventData.title} onChange={(e) => setEventData({ ...eventData, title: e.target.value })} placeholder="e.g. Annual Reunion" /></div>
+              <div className="fg"><label>Description</label><input type="text" value={eventData.description} onChange={(e) => setEventData({ ...eventData, description: e.target.value })} placeholder="Event details..." /></div>
+              <div className="fg"><label>Start Date *</label><input type="date" value={eventData.startDate} onChange={(e) => setEventData({ ...eventData, startDate: e.target.value })} /></div>
+              <div className="fg"><label>End Date *</label><input type="date" value={eventData.endDate} onChange={(e) => setEventData({ ...eventData, endDate: e.target.value })} /></div>
+              <div className="fg"><label>Location *</label><input type="text" value={eventData.location} onChange={(e) => setEventData({ ...eventData, location: e.target.value })} placeholder="e.g. JOPACC Campus" /></div>
               <div className="fg"><label>Status</label><HeroSelect value={eventData.status} onChange={(status) => setEventData({ ...eventData, status: status as 'upcoming' | 'past' })} options={[{ value: 'upcoming', label: 'Upcoming' }, { value: 'past', label: 'Past' }]} ariaLabel="Event status" /></div>
               <button className="btn btn-navy" onClick={handleCreateEvent}>Create Event →</button>
             </div>
@@ -229,8 +228,8 @@ export default function Admin({ users, events, announcements, documents, branche
           {showAnnouncementForm && (
             <div className="reg-panel open">
               <div className="divider"></div>
-              <div className="fg"><label>Title *</label><Input type="text" value={announcementData.title} onChange={(e) => setAnnouncementData({ ...announcementData, title: e.target.value })} placeholder="e.g. Annual Meeting Schedule" /></div>
-              <div className="fg"><label>Content *</label><TextArea value={announcementData.content} onChange={(e) => setAnnouncementData({ ...announcementData, content: e.target.value })} placeholder="Announcement details..." style={{ width: '100%', minHeight: '100px', resize: 'vertical' }} /></div>
+              <div className="fg"><label>Title *</label><input type="text" value={announcementData.title} onChange={(e) => setAnnouncementData({ ...announcementData, title: e.target.value })} placeholder="e.g. Annual Meeting Schedule" /></div>
+              <div className="fg"><label>Content *</label><textarea value={announcementData.content} onChange={(e) => setAnnouncementData({ ...announcementData, content: e.target.value })} placeholder="Announcement details..." style={{ width: '100%', minHeight: '100px', resize: 'vertical' }} /></div>
               <div className="fg"><label>Priority</label><HeroSelect value={announcementData.priority} onChange={(priority) => setAnnouncementData({ ...announcementData, priority: priority as 'normal' | 'urgent' })} options={[{ value: 'normal', label: 'Normal' }, { value: 'urgent', label: 'Urgent' }]} ariaLabel="Announcement priority" /></div>
               <button className="btn btn-navy" onClick={handleCreateAnnouncement}>Post Announcement →</button>
             </div>
@@ -260,9 +259,9 @@ export default function Admin({ users, events, announcements, documents, branche
           {showDocumentForm && (
             <div className="reg-panel open">
               <div className="divider"></div>
-              <div className="fg"><label>Document Title *</label><Input type="text" value={documentData.title} onChange={(e) => setDocumentData({ ...documentData, title: e.target.value })} placeholder="e.g. Annual Meeting Minutes" /></div>
+              <div className="fg"><label>Document Title *</label><input type="text" value={documentData.title} onChange={(e) => setDocumentData({ ...documentData, title: e.target.value })} placeholder="e.g. Annual Meeting Minutes" /></div>
               <div className="fg"><label>Type</label><HeroSelect value={documentData.type} onChange={(type) => setDocumentData({ ...documentData, type: type as 'minutes' | 'constitution' | 'report' | 'other' })} options={[{ value: 'minutes', label: 'Meeting Minutes' }, { value: 'constitution', label: 'Constitution' }, { value: 'report', label: 'Report' }, { value: 'other', label: 'Other' }]} ariaLabel="Document type" /></div>
-              <div className="fg"><label>File URL *</label><Input type="text" value={documentData.fileUrl} onChange={(e) => setDocumentData({ ...documentData, fileUrl: e.target.value })} placeholder="e.g. https://cloudinary.com/..." /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Enter Cloudinary or file storage URL</div></div>
+              <div className="fg"><label>File URL *</label><input type="text" value={documentData.fileUrl} onChange={(e) => setDocumentData({ ...documentData, fileUrl: e.target.value })} placeholder="e.g. https://cloudinary.com/..." /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Enter Cloudinary or file storage URL</div></div>
               <button className="btn btn-navy" onClick={handleCreateDocument}>Upload Document →</button>
             </div>
           )}

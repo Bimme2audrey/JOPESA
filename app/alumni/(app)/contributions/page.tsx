@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, formatDate, getApiBase, getAlumniToken, isValidCameroonPhone, normalizeCameroonPhone, unwrapList } from '@/lib/api';
 import { Contribution } from '@/types';
 import Toast from '@/components/Toast';
-import { Input, TextArea } from '@heroui/react';
 import HeroSelect from '@/components/HeroSelect';
 
 export default function AlumniContributionsPage() {
@@ -226,7 +225,7 @@ export default function AlumniContributionsPage() {
                 </div>}
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 700 }}>{selectedContribution.type === 'DONATION' ? 'Donation amount (XAF)' : 'Amount (XAF)'}</label>
-                  <Input
+                  <input
                     type="number"
                     min="1"
                     step="1"
@@ -241,7 +240,7 @@ export default function AlumniContributionsPage() {
                 </div>
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 700 }}>Phone number</label>
-                  <Input
+                  <input
                     value={phone}
                     onChange={(e) => setPhone(normalizeCameroonPhone(e.target.value).slice(0, 9))}
                     placeholder="681778976"
@@ -257,7 +256,7 @@ export default function AlumniContributionsPage() {
                 </div>
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 700 }}>Message (optional)</label>
-                  <TextArea
+                  <textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Add a note for this payment"

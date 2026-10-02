@@ -2,17 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { LoaderCircle, X, ClipboardList, CreditCard } from 'lucide-react';
-import {
-  Button,
-  Checkbox,
-  CheckboxGroup,
-  Input,
-  ListBox,
-  Radio,
-  RadioGroup,
-  Select,
-  TextArea,
-} from '@heroui/react';
+import { Button } from '@heroui/react';
 import { FormField } from '@/types';
 import { apiFetch, getApiBase, getAlumniToken } from '@/lib/api';
 
@@ -175,7 +165,7 @@ export default function EventRegistrationModal({
               </label>
 
               {field.type === 'textarea' ? (
-                <TextArea
+                <textarea
                   value={(values[field.id] as string) || ''}
                   onChange={(event) => setValue(field.id, event.target.value)}
                   placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
@@ -184,50 +174,61 @@ export default function EventRegistrationModal({
                   className="w-full"
                 />
               ) : field.type === 'select' ? (
-                <Select
+                <select
                   aria-label={field.label}
-                  selectedKey={((values[field.id] as string | undefined) || undefined) as string | undefined}
-                  onSelectionChange={(key) => {
-                    setValue(field.id, String(key ?? ''));
-                  }}
-                  isRequired={field.required}
-                  placeholder="Select an option"
+                  value={(values[field.id] as string | undefined) || ''}
+                  onChange={(event) => setValue(field.id, event.target.value)}
+                  required={field.required}
                   className="w-full"
                 >
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {(field.options || []).map((option) => (
-                        <ListBox.Item key={option.value} id={option.value}>{option.label}</ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
+                  <option value="" disabled>Select an option</option>
+                  {(field.options || []).map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               ) : field.type === 'radio' ? (
-                <RadioGroup
-                  value={String(values[field.id] ?? '')}
-                  onChange={(value) => setValue(field.id, value)}
-                  isRequired={field.required}
-                >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(field.options || []).map((option) => (
-                    <Radio key={option.value} value={option.value}>{option.label}</Radio>
+                    <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="radio"
+                        name={field.id}
+                        value={option.value}
+                        checked={values[field.id] === option.value}
+                        onChange={() => setValue(field.id, option.value)}
+                        required={field.required}
+                        style={{ width: 'auto', padding: 0, border: 0, appearance: 'auto' }}
+                      />
+                      {option.label}
+                    </label>
                   ))}
-                </RadioGroup>
+                </div>
               ) : field.type === 'checkbox' ? (
-                <CheckboxGroup
-                  value={Array.isArray(values[field.id]) ? (values[field.id] as string[]) : []}
-                  onChange={(value) => setValue(field.id, value)}
-                >
-                  {(field.options || []).map((option) => (
-                    <Checkbox key={option.value} value={option.value}>{option.label}</Checkbox>
-                  ))}
-                </CheckboxGroup>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(field.options || []).map((option) => {
+                    const selectedValues = Array.isArray(values[field.id]) ? values[field.id] as string[] : [];
+                    return (
+                      <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="checkbox"
+                          value={option.value}
+                          checked={selectedValues.includes(option.value)}
+                          onChange={(event) => {
+                            const nextValues = event.target.checked
+                              ? [...selectedValues, option.value]
+                              : selectedValues.filter((value) => value !== option.value);
+                            setValue(field.id, nextValues);
+                          }}
+                          style={{ width: 'auto', padding: 0, border: 0, appearance: 'auto' }}
+                        />
+                        {option.label}
+                      </label>
+                    );
+                  })}
+                </div>
               ) : field.type === 'file' ? (
                 <div className="alumni-file-box">
-                  <Input
+                  <input
                     type="file"
                     onChange={(event) => setValue(field.id, event.target.files?.[0] || null)}
                     required={field.required}
@@ -237,7 +238,7 @@ export default function EventRegistrationModal({
                   </span>
                 </div>
               ) : (
-                <Input
+                <input
                   type={
                     field.type === 'number'
                       ? 'number'

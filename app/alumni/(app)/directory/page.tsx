@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, MapPin, Phone, Shield, Briefcase, Heart, Link2, Building2 } from 'lucide-react';
-import { Input } from '@heroui/react';
 import HeroSelect from '@/components/HeroSelect';
 import { apiFetch, resolveMediaUrl, unwrapList } from '@/lib/api';
 import { User, Branch, Batch } from '@/types';
@@ -124,7 +123,7 @@ export default function AlumniDirectoryPage() {
       <div className="directory-search-bar">
         <div className="search-input-wrapper">
           <Search size={18} className="search-icon" />
-          <Input
+          <input
             type="text"
             placeholder="Search by name or phone number..."
             value={searchQuery}

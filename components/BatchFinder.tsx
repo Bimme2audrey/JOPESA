@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { AlertTriangle, Star } from 'lucide-react';
-import { Input } from '@heroui/react';
 import HeroSelect from '@/components/HeroSelect';
 import { getBatchInfo, maxClass, updateYearHint, CLASS_NAMES, SY } from '@/lib/batchUtils';
 import { BatchInfo } from '@/types';
@@ -71,7 +70,7 @@ export default function BatchFinder({ onPrefillAlumni }: BatchFinderProps) {
         <div className="fg">
           <label>Academic Year of Entry</label>
           <div className="year-wrap">
-            <Input
+            <input
               type="number"
               value={yIn}
               onChange={(e) => { setYIn(e.target.value); setResult(null); setFinderError(''); }}

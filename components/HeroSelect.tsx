@@ -1,6 +1,5 @@
 'use client';
 
-import { ListBox, Select } from '@heroui/react';
 import type { CSSProperties } from 'react';
 
 export interface HeroSelectOption {
@@ -20,8 +19,6 @@ interface HeroSelectProps {
   style?: CSSProperties;
 }
 
-const emptyOptionKey = '__hero_select_empty_option__';
-
 export default function HeroSelect({
   value,
   options,
@@ -33,32 +30,22 @@ export default function HeroSelect({
   className,
   style,
 }: HeroSelectProps) {
-  const hasEmptyOption = options.some((option) => option.value === '');
-  const selectedKey = value === '' && hasEmptyOption ? emptyOptionKey : value || undefined;
-
   return (
-    <Select
+    <select
       aria-label={ariaLabel}
-      selectedKey={selectedKey}
-      onSelectionChange={(key) => onChange(key === emptyOptionKey ? '' : String(key ?? ''))}
-      isRequired={isRequired}
-      isDisabled={isDisabled}
-      placeholder={placeholder}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      required={isRequired}
+      disabled={isDisabled}
       className={className}
       style={style}
     >
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox>
-          {options.map((option) => {
-            const key = option.value === '' ? emptyOptionKey : option.value;
-            return <ListBox.Item key={key} id={key}>{option.label}</ListBox.Item>;
-          })}
-        </ListBox>
-      </Select.Popover>
-    </Select>
+      {placeholder && !options.some((option) => option.value === '') && (
+        <option value="" disabled>{placeholder}</option>
+      )}
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
   );
 }

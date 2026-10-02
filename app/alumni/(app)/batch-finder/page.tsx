@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from 'react';
 import { AlertTriangle, Star, Search, Calendar, GraduationCap, Clock } from 'lucide-react';
-import { Input } from '@heroui/react';
 import HeroSelect from '@/components/HeroSelect';
 import { getBatchInfo, maxClass, updateYearHint, CLASS_NAMES, SY } from '@/lib/batchUtils';
 import { BatchInfo } from '@/types';
@@ -83,7 +82,7 @@ export default function AlumniBatchFinderPage() {
 
           <div className="batch-finder-field">
             <label className="batch-finder-label">Academic year of entry</label>
-            <Input
+            <input
               type="number"
               className="batch-finder-input"
               value={yIn}

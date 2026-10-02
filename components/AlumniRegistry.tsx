@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { AlertTriangle, Search, Trash2, GraduationCap } from 'lucide-react';
-import { Input } from '@heroui/react';
 import HeroSelect from '@/components/HeroSelect';
 import { getBatchInfo, maxClass, updateYearHint, CLASS_NAMES, SY } from '@/lib/batchUtils';
 import { Alumni, Branch } from '@/types';
@@ -108,7 +107,7 @@ export default function AlumniRegistry({ alumni, branches, onAlumniChange, onSho
       </div>
       <div className="search-wrap">
         <Search className="search-ico" size={16} />
-        <Input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name…" />
+        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name…" />
       </div>
       <div className="filter-row">
         <div className={`f-chip ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All</div>
@@ -126,11 +125,11 @@ export default function AlumniRegistry({ alumni, branches, onAlumniChange, onSho
         {showRegPanel && (
           <div className="reg-panel open">
             <div className="divider"></div>
-            <div className="fg"><label>Full Name *</label><Input type="text" value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="e.g. Fang Bertin" /></div>
+            <div className="fg"><label>Full Name *</label><input type="text" value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="e.g. Fang Bertin" /></div>
             <div className="fg">
               <label>Academic Year of Entry *</label>
               <div className="year-wrap">
-                <Input type="number" value={regYear} onChange={(e) => setRegYear(e.target.value)} placeholder="e.g. 2008 (means 2008/2009)" min={2007} />
+                <input type="number" value={regYear} onChange={(e) => setRegYear(e.target.value)} placeholder="e.g. 2008 (means 2008/2009)" min={2007} />
                 <div className="year-hint">{updateYearHint(regYear)}</div>
               </div>
             </div>
