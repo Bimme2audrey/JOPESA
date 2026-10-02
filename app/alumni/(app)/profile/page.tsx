@@ -22,6 +22,8 @@ import {
 
 } from 'lucide-react';
 
+import { Input, ListBox, Select, TextArea } from '@heroui/react';
+
 import { Batch, Branch } from '@/types';
 
 import { apiFetch, getApiBase, getAlumniToken, unwrapList } from '@/lib/api';
@@ -37,6 +39,7 @@ interface ProfileForm {
   email: string;
 
   phone: string;
+  relationshipStatus: string;
 
   batchId: string;
 
@@ -73,6 +76,7 @@ const emptyForm: ProfileForm = {
   email: '',
 
   phone: '',
+  relationshipStatus: '',
 
   batchId: '',
 
@@ -161,6 +165,7 @@ export default function AlumniProfilePage() {
           email: profile.user?.email || '',
 
           phone: profile.user?.phone || '',
+          relationshipStatus: profile.relationshipStatus || '',
 
           batchId: profile.batchId || profile.batch?.id || '',
 
@@ -353,6 +358,7 @@ export default function AlumniProfilePage() {
             lastName: form.lastName,
 
             phone: form.phone || undefined,
+            relationshipStatus: form.relationshipStatus,
 
             batchId: form.batchId,
 
@@ -611,16 +617,10 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">First name</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     value={form.firstName}
-
-                    onChange={(e) => setField('firstName', e.target.value)}
-
+                    onChange={(event) => setField('firstName', event.target.value)}
                     required
-
                   />
 
                 </div>
@@ -629,16 +629,10 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Last name</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     value={form.lastName}
-
-                    onChange={(e) => setField('lastName', e.target.value)}
-
+                    onChange={(event) => setField('lastName', event.target.value)}
                     required
-
                   />
 
                 </div>
@@ -647,7 +641,7 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Email</label>
 
-                  <input className="alumni-input" value={form.email} disabled />
+                  <Input value={form.email} disabled />
 
                 </div>
 
@@ -655,17 +649,38 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Phone number</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     value={form.phone}
-
-                    onChange={(e) => setField('phone', e.target.value)}
-
+                    onChange={(event) => setField('phone', event.target.value)}
                     placeholder="+237 6XX XXX XXX"
-
                   />
+
+                </div>
+
+                <div className="alumni-field">
+
+                  <label className="alumni-label">Relationship status</label>
+
+                  <Select
+                    selectedKey={form.relationshipStatus || 'prefer-not-to-share'}
+                    onSelectionChange={(key) => {
+                      setField('relationshipStatus', key === 'prefer-not-to-share' ? '' : String(key ?? ''));
+                    }}
+                  >
+                    <Select.Trigger>
+                      <Select.Value />
+                      <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        <ListBox.Item id="prefer-not-to-share">Prefer not to share</ListBox.Item>
+                        <ListBox.Item id="Single">Single</ListBox.Item>
+                        <ListBox.Item id="In a relationship">In a relationship</ListBox.Item>
+                        <ListBox.Item id="Married">Married</ListBox.Item>
+                        <ListBox.Item id="Other">Other</ListBox.Item>
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
 
                 </div>
 
@@ -685,35 +700,26 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Batch</label>
 
-                  <div className="alumni-select-wrap">
-
-                    <select
-
-                      className="alumni-input"
-
-                      value={form.batchId}
-
-                      onChange={(e) => setField('batchId', e.target.value)}
-
-                      required
-
-                    >
-
-                      <option value="">Select batch</option>
-
-                      {batches.map((batch) => (
-
-                        <option key={batch.id} value={batch.id}>
-
-                          {batch.name || `Batch ${batch.year}`}
-
-                        </option>
-
-                      ))}
-
-                    </select>
-
-                  </div>
+                  <Select
+                    selectedKey={form.batchId || undefined}
+                    onSelectionChange={(key) => {
+                      setField('batchId', String(key ?? ''));
+                    }}
+                    isRequired
+                    placeholder="Select batch"
+                  >
+                    <Select.Trigger>
+                      <Select.Value />
+                      <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {batches.map((batch) => (
+                          <ListBox.Item key={batch.id} id={batch.id}>{batch.name || `Batch ${batch.year}`}</ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
 
                 </div>
 
@@ -721,35 +727,26 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Chapter / Branch</label>
 
-                  <div className="alumni-select-wrap">
-
-                    <select
-
-                      className="alumni-input"
-
-                      value={form.branchId}
-
-                      onChange={(e) => setField('branchId', e.target.value)}
-
-                      required
-
-                    >
-
-                      <option value="">Select chapter</option>
-
-                      {branches.map((branch) => (
-
-                        <option key={branch.id} value={branch.id}>
-
-                          {branch.name}
-
-                        </option>
-
-                      ))}
-
-                    </select>
-
-                  </div>
+                  <Select
+                    selectedKey={form.branchId || undefined}
+                    onSelectionChange={(key) => {
+                      setField('branchId', String(key ?? ''));
+                    }}
+                    isRequired
+                    placeholder="Select chapter"
+                  >
+                    <Select.Trigger>
+                      <Select.Value />
+                      <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {branches.map((branch) => (
+                          <ListBox.Item key={branch.id} id={branch.id}>{branch.name}</ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
 
                 </div>
 
@@ -769,16 +766,10 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Current role</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     value={form.currentRole}
-
-                    onChange={(e) => setField('currentRole', e.target.value)}
-
+                    onChange={(event) => setField('currentRole', event.target.value)}
                     placeholder="e.g. Software Engineer"
-
                   />
 
                 </div>
@@ -787,16 +778,10 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Company</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     value={form.currentCompany}
-
-                    onChange={(e) => setField('currentCompany', e.target.value)}
-
+                    onChange={(event) => setField('currentCompany', event.target.value)}
                     placeholder="e.g. Acme Corp"
-
                   />
 
                 </div>
@@ -805,16 +790,10 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Location</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     value={form.location}
-
-                    onChange={(e) => setField('location', e.target.value)}
-
+                    onChange={(event) => setField('location', event.target.value)}
                     placeholder="City, Country"
-
                   />
 
                 </div>
@@ -833,20 +812,12 @@ export default function AlumniProfilePage() {
 
                 <label className="alumni-label">Bio</label>
 
-                <textarea
-
-                  className="alumni-input"
-
-                  rows={5}
-
+                <TextArea
                   value={form.bio}
-
-                  onChange={(e) => setField('bio', e.target.value)}
-
+                  onChange={(event) => setField('bio', event.target.value)}
                   placeholder="Tell the alumni community a bit about yourself..."
-
-                  style={{ resize: 'vertical', minHeight: 120 }}
-
+                  rows={5}
+                  className="w-full"
                 />
 
               </div>
@@ -869,18 +840,11 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">LinkedIn</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     type="url"
-
                     value={form.linkedIn}
-
-                    onChange={(e) => setField('linkedIn', e.target.value)}
-
+                    onChange={(event) => setField('linkedIn', event.target.value)}
                     placeholder="https://linkedin.com/in/..."
-
                   />
 
                 </div>
@@ -889,18 +853,11 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Website</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     type="url"
-
                     value={form.website}
-
-                    onChange={(e) => setField('website', e.target.value)}
-
+                    onChange={(event) => setField('website', event.target.value)}
                     placeholder="https://..."
-
                   />
 
                 </div>
@@ -909,16 +866,10 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Twitter / X</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     value={form.twitter}
-
-                    onChange={(e) => setField('twitter', e.target.value)}
-
+                    onChange={(event) => setField('twitter', event.target.value)}
                     placeholder="@username"
-
                   />
 
                 </div>
@@ -927,16 +878,10 @@ export default function AlumniProfilePage() {
 
                   <label className="alumni-label">Instagram</label>
 
-                  <input
-
-                    className="alumni-input"
-
+                  <Input
                     value={form.instagram}
-
-                    onChange={(e) => setField('instagram', e.target.value)}
-
+                    onChange={(event) => setField('instagram', event.target.value)}
                     placeholder="@username"
-
                   />
 
                 </div>

@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Checkbox, Input, TextArea } from '@heroui/react';
 import { Shield, Users, Calendar, FileText, LogOut, Plus, Trash2, Calendar as CalendarIcon, Megaphone, FileText as FileIcon, Building2, X, Menu, MapPin, UserPlus, Clock, Image as ImageIcon, ExternalLink, LoaderCircle, GraduationCap, BarChart3, DollarSign, CreditCard } from 'lucide-react';
 import { User, Event, Announcement, Document, Branch, Photo, Batch } from '@/types';
 import Toast from '@/components/Toast';
 import PhotoCarousel, { CarouselSlide } from '@/components/alumni/PhotoCarousel';
+import HeroSelect from '@/components/HeroSelect';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 type AdminSection = 'overview' | 'events' | 'announcements' | 'documents' | 'branches' | 'photos' | 'batches' | 'statistics' | 'registrations' | 'contributions';
@@ -93,7 +95,7 @@ export default function AdminDashboard() {
   const [editingContributionId, setEditingContributionId] = useState<string | null>(null);
   const [contributionData, setContributionData] = useState({
     title: '',
-    type: 'EVENT_REGISTRATION' as 'EVENT_REGISTRATION' | 'ANNUAL_FEE' | 'GENERAL' | 'PROJECT' | 'OTHER',
+    type: 'EVENT_REGISTRATION' as 'EVENT_REGISTRATION' | 'ANNUAL_FEE' | 'GENERAL' | 'DONATION' | 'PROJECT' | 'OTHER',
     description: '',
     eventId: '' as string,
     installments: [] as Array<{ id: string; label: string; amount: number; dueDate: string }>,
@@ -177,6 +179,7 @@ export default function AdminDashboard() {
     isPinned: false,
     imageUrl: ''
   });
+  const [announcementImageFile, setAnnouncementImageFile] = useState<File | null>(null);
 
   // Document management
   const [showDocumentForm, setShowDocumentForm] = useState(false);
@@ -401,6 +404,18 @@ export default function AdminDashboard() {
     if (!response.ok) {
       throw new Error('Document upload failed');
     }
+    return response.json();
+  };
+
+  const uploadAnnouncementImage = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${apiBaseUrl}/upload/image?folder=announcements`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Announcement image upload failed');
     return response.json();
   };
 
@@ -944,11 +959,11 @@ export default function AdminDashboard() {
 
   const handleUploadPhotos = async () => {
     if (!selectedEventId) {
-      alert('Please select an event');
+      showToastMessage('Please select an event before uploading photos.', 'warning');
       return;
     }
     if (photoFiles.length === 0) {
-      alert('Please select at least one photo');
+      showToastMessage('Please select at least one photo to upload.', 'warning');
       return;
     }
 
@@ -1051,6 +1066,7 @@ export default function AdminDashboard() {
 
   const handleEditAnnouncement = (announcement: Announcement) => {
     setEditingAnnouncementId(announcement.id);
+    setAnnouncementImageFile(null);
     setAnnouncementData({
       title: announcement.title,
       content: announcement.content,
@@ -1067,72 +1083,86 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (announcementData.imageUrl.trim()) {
-      try {
-        const imageUrl = new URL(announcementData.imageUrl);
-        if (imageUrl.protocol !== 'http:' && imageUrl.protocol !== 'https:') throw new Error('Invalid image URL');
-      } catch {
-        showToastMessage('Enter a valid public image URL beginning with http:// or https://.', 'warning');
-        return;
-      }
+    const submittedAnnouncement = { ...announcementData };
+    const submittedImageFile = announcementImageFile;
+    const submittedEditingAnnouncementId = editingAnnouncementId;
+    if (submittedImageFile && !submittedImageFile.type.startsWith('image/')) {
+      showToastMessage('Choose a valid image file.', 'warning');
+      return;
+    }
+    if (submittedImageFile && submittedImageFile.size > 5 * 1024 * 1024 * 1024) {
+      showToastMessage('Announcement images must be 5 GB or smaller.', 'warning');
+      return;
     }
 
     setIsSavingAnnouncement(true);
+    setShowAnnouncementForm(false);
+    setAnnouncementData({ title: '', content: '', type: 'NEWS', isPinned: false, imageUrl: '' });
+    setAnnouncementImageFile(null);
+    setEditingAnnouncementId(null);
+    showToastMessage('Announcement save started. You can continue working.', 'success');
 
     try {
-      if (editingAnnouncementId) {
-        const response = await fetch(`${apiBaseUrl}/announcements/${editingAnnouncementId}`, {
+      let imageUrl = submittedAnnouncement.imageUrl.trim();
+      if (submittedImageFile) {
+        const uploadedImage = await uploadAnnouncementImage(submittedImageFile);
+        imageUrl = uploadedImage.url || uploadedImage.secure_url || '';
+      }
+
+      if (submittedEditingAnnouncementId) {
+        const response = await fetch(`${apiBaseUrl}/announcements/${submittedEditingAnnouncementId}`, {
           method: 'PUT',
           headers: getAuthHeaders(adminToken),
           body: JSON.stringify({
-            title: announcementData.title,
-            content: announcementData.content,
-            type: announcementData.type,
-            isPinned: announcementData.isPinned,
-            image: announcementData.imageUrl || undefined,
+            title: submittedAnnouncement.title,
+            content: submittedAnnouncement.content,
+            type: submittedAnnouncement.type,
+            isPinned: submittedAnnouncement.isPinned,
+            image: imageUrl || undefined,
           }),
         });
         if (!response.ok) {
           throw new Error('Unable to update announcement');
         }
         const updatedAnnouncement = await response.json();
-        setAnnouncements(announcements.map(a => a.id === editingAnnouncementId ? {
+        setAnnouncements(previous => previous.map(a => a.id === submittedEditingAnnouncementId ? {
           ...a,
           ...updatedAnnouncement,
-          imageUrl: updatedAnnouncement.image || announcementData.imageUrl,
+          imageUrl: updatedAnnouncement.image || imageUrl,
           createdAt: updatedAnnouncement.createdAt ? new Date(updatedAnnouncement.createdAt).toLocaleDateString() : a.createdAt,
         } : a));
-        setEditingAnnouncementId(null);
       } else {
         const response = await fetch(`${apiBaseUrl}/announcements`, {
           method: 'POST',
           headers: getAuthHeaders(adminToken),
           body: JSON.stringify({
-            title: announcementData.title,
-            content: announcementData.content,
-            type: announcementData.type,
-            isPinned: announcementData.isPinned,
-            image: announcementData.imageUrl || undefined,
+            title: submittedAnnouncement.title,
+            content: submittedAnnouncement.content,
+            type: submittedAnnouncement.type,
+            isPinned: submittedAnnouncement.isPinned,
+            image: imageUrl || undefined,
           }),
         });
         if (!response.ok) {
           throw new Error('Unable to create announcement');
         }
         const newAnnouncement = await response.json();
-        setAnnouncements([{ ...newAnnouncement,
-          imageUrl: newAnnouncement.image || announcementData.imageUrl,
+        setAnnouncements(previous => [{ ...newAnnouncement,
+          imageUrl: newAnnouncement.image || imageUrl,
           createdAt: newAnnouncement.createdAt ? new Date(newAnnouncement.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
-        }, ...announcements]);
+        }, ...previous]);
       }
+      showToastMessage('Announcement saved successfully.', 'success');
     } catch (error) {
       console.error('Announcement save failed:', error);
+      setAnnouncementData(submittedAnnouncement);
+      setAnnouncementImageFile(submittedImageFile);
+      setEditingAnnouncementId(submittedEditingAnnouncementId);
+      setShowAnnouncementForm(true);
       showToastMessage('The announcement could not be saved. Please try again.', 'error');
     } finally {
       setIsSavingAnnouncement(false);
     }
-
-    setAnnouncementData({ title: '', content: '', type: 'NEWS', isPinned: false, imageUrl: '' });
-    setShowAnnouncementForm(false);
   };
 
   const handleCreateDocument = async () => {
@@ -1668,7 +1698,7 @@ export default function AdminDashboard() {
             {/* Filters Section */}
             <div className="admin-stats-filters">
               <div className="admin-filter-group">
-                <input
+                <Input
                   type="text"
                   value={statisticsFilters.search}
                   onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, search: e.target.value }))}
@@ -1677,49 +1707,40 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="admin-filter-group">
-                <select
+                <HeroSelect
                   value={statisticsFilters.branchId}
-                  onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, branchId: e.target.value }))}
+                  onChange={(value) => setStatisticsFilters((prev) => ({ ...prev, branchId: value }))}
                   className="admin-filter-select"
-                >
-                  <option value="all">All branches</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>{branch.name}</option>
-                  ))}
-                </select>
+                  placeholder="All branches"
+                  options={[{ value: 'all', label: 'All branches' }, ...branches.map((branch) => ({ value: branch.id, label: branch.name }))]}
+                />
               </div>
               <div className="admin-filter-group">
-                <select
+                <HeroSelect
                   value={statisticsFilters.batchId}
-                  onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, batchId: e.target.value }))}
+                  onChange={(value) => setStatisticsFilters((prev) => ({ ...prev, batchId: value }))}
                   className="admin-filter-select"
-                >
-                  <option value="all">All batches</option>
-                  {batches.map((batch) => (
-                    <option key={batch.id} value={batch.id}>{batch.name || `Batch ${batch.year}`}</option>
-                  ))}
-                </select>
+                  placeholder="All batches"
+                  options={[{ value: 'all', label: 'All batches' }, ...batches.map((batch) => ({ value: batch.id, label: batch.name || `Batch ${batch.year}` }))]}
+                />
               </div>
               <div className="admin-filter-group">
-                <select
+                <HeroSelect
                   value={statisticsFilters.role}
-                  onChange={(e) => setStatisticsFilters((prev) => ({ ...prev, role: e.target.value }))}
+                  onChange={(value) => setStatisticsFilters((prev) => ({ ...prev, role: value }))}
                   className="admin-filter-select"
-                >
-                  <option value="all">All roles</option>
-                  <option value="member">Alumni</option>
-                  <option value="branch_leader">Branch leaders</option>
-                  <option value="admin">Admins</option>
-                </select>
+                  placeholder="All roles"
+                  options={[{ value: 'all', label: 'All roles' }, { value: 'member', label: 'Alumni' }, { value: 'branch_leader', label: 'Branch leaders' }, { value: 'admin', label: 'Admins' }]}
+                />
               </div>
               <div className="admin-filter-group admin-filter-date">
-                <input 
+                <Input 
                   type="date" 
                   value={dateRange.start} 
                   onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))} 
                   className="admin-filter-input"
                 />
-                <input 
+                <Input 
                   type="date" 
                   value={dateRange.end} 
                   onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))} 
@@ -2112,23 +2133,22 @@ export default function AdminDashboard() {
                         All Batches
                       </button>
                     </div>
-                    <select
+                    <HeroSelect
                       value=""
-                      onChange={(e) => {
-                        const selectedBatchId = e.target.value;
+                      onChange={(selectedBatchId) => {
                         if (!selectedBatchId || eventData.batchIds.includes(selectedBatchId)) return;
                         setEventData({ ...eventData, batchIds: [...eventData.batchIds, selectedBatchId] });
                       }}
                       style={{ width: '100%', padding: '12px 14px', border: '2px solid var(--lgray)', borderRadius: '8px', fontSize: '14px' }}
-                    >
-                      <option value="">— Select a batch —</option>
-                      {batches.map((batch) => {
+                      placeholder="Select a batch"
+                      options={[
+                        { value: '', label: '— Select a batch —' },
+                        ...batches.map((batch) => {
                         const label = batch?.name || `Batch ${batch?.year ?? ''}`;
-                        return (
-                          <option key={batch.id} value={batch.id}>{label}</option>
-                        );
-                      })}
-                    </select>
+                        return { value: batch.id, label };
+                        }),
+                      ]}
+                    />
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       {eventData.batchIds.map((batchId) => {
                         const batch = batches.find((item) => item.id === batchId);
@@ -2176,7 +2196,7 @@ export default function AdminDashboard() {
                     <Plus size={14} /> {eventData.registrationForm.length > 0 ? 'Edit Form' : 'Add Form'}
                   </button>
                 </div>
-                <div className="fg"><label>Status</label><div className="sel-wrap"><select value={eventData.status} onChange={(e) => setEventData({ ...eventData, status: e.target.value as 'upcoming' | 'past' })}><option value="upcoming">Upcoming</option><option value="past">Past</option></select></div></div>
+                  <div className="fg"><label>Status</label><HeroSelect value={eventData.status} onChange={(value) => setEventData({ ...eventData, status: value as 'upcoming' | 'past' })} options={[{ value: 'upcoming', label: 'Upcoming' }, { value: 'past', label: 'Past' }]} ariaLabel="Event status" /></div>
                 <button className="btn btn-navy" onClick={handleCreateEvent} disabled={isSavingEvent} style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{isSavingEvent ? <><LoaderCircle size={16} className="loading-spinner" /> {editingEventId ? 'Updating Event...' : 'Creating Event...'}</> : <>{editingEventId ? 'Update Event →' : 'Create Event →'}</>}</button>
               </div>
             )}
@@ -2225,25 +2245,17 @@ export default function AdminDashboard() {
                           </button>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                          <select
+                          <HeroSelect
                             value={field.type}
-                            onChange={(e) => {
+                            onChange={(value) => {
                               const updated = [...eventData.registrationForm];
-                              updated[index].type = e.target.value;
+                              updated[index].type = value;
                               setEventData({ ...eventData, registrationForm: updated });
                             }}
                             style={{ padding: '8px 12px', border: '1px solid var(--lgray)', borderRadius: '6px', fontSize: '13px' }}
-                          >
-                            <option value="text">Text</option>
-                            <option value="number">Number</option>
-                            <option value="email">Email</option>
-                            <option value="textarea">Text Area</option>
-                            <option value="radio">Radio</option>
-                            <option value="checkbox">Checkbox</option>
-                            <option value="select">Select</option>
-                            <option value="file">File Upload</option>
-                            <option value="date">Date</option>
-                          </select>
+                            ariaLabel="Registration field type"
+                            options={[{ value: 'text', label: 'Text' }, { value: 'number', label: 'Number' }, { value: 'email', label: 'Email' }, { value: 'textarea', label: 'Text Area' }, { value: 'radio', label: 'Radio' }, { value: 'checkbox', label: 'Checkbox' }, { value: 'select', label: 'Select' }, { value: 'file', label: 'File Upload' }, { value: 'date', label: 'Date' }]}
+                          />
                           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
                             <input
                               type="checkbox"
@@ -2350,7 +2362,7 @@ export default function AdminDashboard() {
                 <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--navy)' }}>Manage Announcements</div>
                 <div style={{ fontSize: 12, color: 'var(--gray)' }}>Create and edit announcements</div>
               </div>
-              <button className="btn btn-gold btn-sm" onClick={() => { setShowAnnouncementForm(!showAnnouncementForm); setEditingAnnouncementId(null); }}>
+              <button className="btn btn-gold btn-sm" disabled={isSavingAnnouncement} onClick={() => { setShowAnnouncementForm(!showAnnouncementForm); setEditingAnnouncementId(null); }}>
                 {showAnnouncementForm ? <X size={14} /> : <Plus size={14} />} {showAnnouncementForm ? 'Cancel' : 'New Post'}
               </button>
             </div>
@@ -2359,13 +2371,14 @@ export default function AdminDashboard() {
                 <div className="divider"></div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
                   <div className="fg"><label>Title *</label><input type="text" value={announcementData.title} onChange={(e) => setAnnouncementData({ ...announcementData, title: e.target.value })} placeholder="e.g. Annual Meeting Schedule" /></div>
-                  <div className="fg"><label>Type</label><div className="sel-wrap"><select value={announcementData.type} onChange={(e) => setAnnouncementData({ ...announcementData, type: e.target.value as 'NEWS' | 'UPDATE' | 'EVENT' | 'OPPORTUNITY' | 'WARNING' })}><option value="NEWS">News</option><option value="UPDATE">Update</option><option value="EVENT">Event</option><option value="OPPORTUNITY">Opportunity</option><option value="WARNING">Warning</option></select></div></div>
+                  <div className="fg"><label>Type</label><HeroSelect value={announcementData.type} onChange={(value) => setAnnouncementData({ ...announcementData, type: value as 'NEWS' | 'UPDATE' | 'EVENT' | 'OPPORTUNITY' | 'WARNING' })} options={[{ value: 'NEWS', label: 'News' }, { value: 'UPDATE', label: 'Update' }, { value: 'EVENT', label: 'Event' }, { value: 'OPPORTUNITY', label: 'Opportunity' }, { value: 'WARNING', label: 'Warning' }]} ariaLabel="Announcement type" /></div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
                   <div className="fg">
-                    <label>Image URL (optional)</label>
-                    <input type="url" value={announcementData.imageUrl} onChange={(e) => setAnnouncementData({ ...announcementData, imageUrl: e.target.value })} placeholder="https://example.com/image.jpg" />
-                    <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Paste a publicly accessible image link. The image will be attached when you post.</div>
+                    <label>Announcement image (optional)</label>
+                    <input type="file" accept="image/*" onChange={(e) => setAnnouncementImageFile(e.target.files?.[0] || null)} aria-label="Upload announcement image" />
+                    {announcementImageFile && <button type="button" className="btn btn-sm" onClick={() => setAnnouncementImageFile(null)}>Remove selected image</button>}
+                    <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Choose an image file to attach it to the announcement.</div>
                   </div>
                   <div className="fg" style={{ display: 'flex', alignItems: 'flex-end' }}><label style={{ width: '100%', marginBottom: 8 }}>Pin announcement</label><div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><input type="checkbox" checked={announcementData.isPinned} onChange={(e) => setAnnouncementData({ ...announcementData, isPinned: e.target.checked })} /> <span style={{ color: 'var(--gray)', fontSize: 13 }}>Pinned</span></div></div>
                 </div>
@@ -2425,11 +2438,17 @@ export default function AdminDashboard() {
                   <div className="fg"><label>Category *</label><input type="text" value={documentData.category} onChange={(e) => setDocumentData({ ...documentData, category: e.target.value })} placeholder="e.g. Reports" /></div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="admin-grid-2">
-                  <div className="fg"><label>File Type</label><div className="sel-wrap"><select value={documentData.fileType} onChange={(e) => setDocumentData({ ...documentData, fileType: e.target.value as 'PDF' | 'IMAGE' | 'PRESENTATION' | 'SPREADSHEET' | 'VIDEO' | 'OTHER' })}><option value="PDF">PDF</option><option value="IMAGE">Image</option><option value="PRESENTATION">Presentation</option><option value="SPREADSHEET">Spreadsheet</option><option value="VIDEO">Video</option><option value="OTHER">Other</option></select></div></div>
+                  <div className="fg"><label>File Type</label><HeroSelect value={documentData.fileType} onChange={(value) => setDocumentData({ ...documentData, fileType: value as 'PDF' | 'IMAGE' | 'PRESENTATION' | 'SPREADSHEET' | 'VIDEO' | 'OTHER' })} options={[{ value: 'PDF', label: 'PDF' }, { value: 'IMAGE', label: 'Image' }, { value: 'PRESENTATION', label: 'Presentation' }, { value: 'SPREADSHEET', label: 'Spreadsheet' }, { value: 'VIDEO', label: 'Video' }, { value: 'OTHER', label: 'Other' }]} ariaLabel="File type" /></div>
                   <div className="fg"><label>Tags</label><input type="text" value={documentData.tags} onChange={(e) => setDocumentData({ ...documentData, tags: e.target.value })} placeholder="e.g. alumni,meeting,minutes" /></div>
                 </div>
                 <div className="fg"><label>Description (optional)</label><textarea value={documentData.description} onChange={(e) => setDocumentData({ ...documentData, description: e.target.value })} placeholder="Short summary of the document" style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit', minHeight: '90px', resize: 'vertical' }} /></div>
-                <div className="fg"><label>File *</label><input type="file" onChange={(e) => setDocumentFile(e.target.files?.[0] || null)} accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xlsx,.csv" style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Accepted: PDF, DOC, DOCX, TXT, PPT, PPTX, XLSX, CSV</div></div>
+                <div className="fg"><label>File *</label><input type="file" onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setDocumentFile(file);
+                  if (file?.type.startsWith('image/')) setDocumentData((current) => ({ ...current, fileType: 'IMAGE' }));
+                  else if (file?.type.startsWith('video/')) setDocumentData((current) => ({ ...current, fileType: 'VIDEO' }));
+                  else if (file?.type === 'application/pdf') setDocumentData((current) => ({ ...current, fileType: 'PDF' }));
+                }} accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xlsx,.csv,image/*,video/*" style={{ width: '100%', padding: '15px 16px', border: '2px solid var(--lgray)', borderRadius: '10px', fontSize: '15px', fontFamily: 'inherit' }} /><div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>Accepted: documents, images, and videos. Image, video, and PDF types are detected automatically.</div></div>
                 <button className="btn btn-navy" onClick={handleCreateDocument} disabled={isCreatingDocument} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{isCreatingDocument ? <><LoaderCircle size={16} className="loading-spinner" /> Uploading Document...</> : <>Upload Document →</>}</button>
               </div>
             )}
@@ -2583,12 +2602,7 @@ export default function AdminDashboard() {
                 <div className="fg">
                   <label>Select Event *</label>
                   <div className="sel-wrap">
-                    <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
-                      <option value="">— Select an event —</option>
-                      {events.map(event => (
-                        <option key={event.id} value={event.id}>{event.title}</option>
-                      ))}
-                    </select>
+                    <HeroSelect value={selectedEventId} onChange={setSelectedEventId} placeholder="Select an event" ariaLabel="Event" options={[{ value: '', label: '— Select an event —' }, ...events.map((event) => ({ value: event.id, label: event.title }))]} />
                   </div>
                 </div>
                 <div className="fg">
@@ -2763,11 +2777,12 @@ export default function AdminDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px', width: '100%' }} className="admin-grid-2">
                   <div className="fg"><label>Title *</label><input type="text" value={contributionData.title} onChange={(e) => setContributionData({ ...contributionData, title: e.target.value })} placeholder="e.g., Annual Membership Fee 2026" /></div>
                   <div className="fg"><label>Type *</label>
-                    <select value={contributionData.type} onChange={(e) => setContributionData({ ...contributionData, type: e.target.value as any })}>
+                    <select value={contributionData.type} onChange={(e) => setContributionData({ ...contributionData, type: e.target.value as any, installments: e.target.value === 'DONATION' ? [] : contributionData.installments })}>
                       <option value="EVENT_REGISTRATION">Event Registration Fee</option>
                       <option value="ANNUAL_FEE">Annual Fee</option>
                       <option value="GENERAL">General</option>
-                      <option value="PROJECTS">Projects</option>
+                      <option value="DONATION">Voluntary Donation</option>
+                      <option value="PROJECT">Projects</option>
                       <option value="OTHER">Other</option>
                     </select>
                   </div>
@@ -2788,7 +2803,9 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="fg"><label>Description</label><textarea value={contributionData.description} onChange={(e) => setContributionData({ ...contributionData, description: e.target.value })} placeholder="Describe this contribution..." /></div>
-                <div className="fg"><label>Payment Installments</label>
+                {contributionData.type === 'DONATION' ? (
+                  <div className="fg"><label>Amount</label><div style={{ color: 'var(--gray)', fontSize: 13 }}>Members choose how much they wish to give when making a donation.</div></div>
+                ) : <div className="fg"><label>Payment Installments</label>
                   <div style={{ display: 'grid', gap: '10px' }}>
                     {contributionData.installments.map((installment, index) => (
                       <div key={installment.id} className="installment-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '8px', alignItems: 'center', padding: '12px', background: 'var(--off)', borderRadius: '8px', border: '1px solid var(--lgray)' }}>
@@ -2800,7 +2817,7 @@ export default function AdminDashboard() {
                     ))}
                     <button onClick={() => setContributionData({ ...contributionData, installments: [...contributionData.installments, { id: Date.now().toString(), label: `Installment ${contributionData.installments.length + 1}`, amount: 0, dueDate: '' }] })} style={{ padding: '12px 14px', background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', width: 'fit-content' }}><Plus size={14} /> Add Installment</button>
                   </div>
-                </div>
+                </div>}
                 <div className="admin-grid-2" style={{ gap: '12px', marginTop: '16px' }}>
                   <button className="btn btn-navy" onClick={async () => {
                     if (contributionData.installments.some((installment) => !Number.isFinite(installment.amount) || installment.amount <= 0)) {
@@ -2875,8 +2892,8 @@ export default function AdminDashboard() {
                             <div style={{ fontSize: '11px', color: 'var(--gray)' }}>{contribution.description || 'No description'}</div>
                           </td>
                           <td style={{ padding: '12px 8px', fontSize: '12' }}>{contribution.type?.replace(/_/g, ' ') || 'General'}</td>
-                          <td style={{ padding: '12px 8px', fontSize: '12' }}>{contribution.installments?.length || 0} installment(s)</td>
-                          <td style={{ padding: '12px 8px', fontSize: '12', fontWeight: 600 }}>{totalAmount.toLocaleString()} FCFA</td>
+                          <td style={{ padding: '12px 8px', fontSize: '12' }}>{contribution.type === 'DONATION' ? 'Voluntary donation' : `${contribution.installments?.length || 0} installment(s)`}</td>
+                          <td style={{ padding: '12px 8px', fontSize: '12', fontWeight: 600 }}>{contribution.type === 'DONATION' ? 'Member-set amount' : `${totalAmount.toLocaleString()} FCFA`}</td>
                           <td style={{ padding: '12px 8px' }}>
                             <span className={`status-badge ${String(contribution.status || 'ACTIVE').toLowerCase()}`} style={{ textTransform: 'capitalize', fontSize: '10px', padding: '2px 6px' }}>{String(contribution.status || 'ACTIVE').toLowerCase()}</span>
                           </td>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, User, Phone, Eye, EyeOff, GraduationCap, Building2 } from 'lucide-react';
+import { Button, Input, ListBox, Select } from '@heroui/react';
 import AuthCard from '@/components/AuthCard';
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -122,121 +123,113 @@ export default function AlumniRegisterPage() {
     >
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>First Name</label>
-        <div style={{ position: 'relative' }}>
-          <User size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray)' }} />
-          <input
-            type="text"
-            value={firstName}
-            onChange={(event) => setFirstName(event.target.value)}
-            placeholder="Enter your first name"
-            style={{ paddingLeft: '42px' }}
-            required
-          />
-        </div>
+        <Input
+          type="text"
+          value={firstName}
+          onChange={(event) => setFirstName(event.target.value)}
+          placeholder="Enter your first name"
+          required
+        />
       </div>
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Last Name</label>
-        <div style={{ position: 'relative' }}>
-          <User size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray)' }} />
-          <input
-            type="text"
-            value={lastName}
-            onChange={(event) => setLastName(event.target.value)}
-            placeholder="Enter your last name"
-            style={{ paddingLeft: '42px' }}
-            required
-          />
-        </div>
+        <Input
+          type="text"
+          value={lastName}
+          onChange={(event) => setLastName(event.target.value)}
+          placeholder="Enter your last name"
+          required
+        />
       </div>
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Email Address</label>
-        <div style={{ position: 'relative' }}>
-          <Mail size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray)' }} />
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Enter your email"
-            style={{ paddingLeft: '42px' }}
-            required
-          />
-        </div>
+        <Input
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="Enter your email"
+          required
+        />
       </div>
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Phone Number</label>
-        <div style={{ position: 'relative' }}>
-          <Phone size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray)' }} />
-          <input
-            type="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="Optional phone number"
-            style={{ paddingLeft: '42px' }}
-          />
-        </div>
+        <Input
+          type="tel"
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+          placeholder="Optional phone number"
+        />
       </div>
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Batch</label>
-        <div style={{ position: 'relative' }}>
-          <GraduationCap size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray)' }} />
-          <select
-            value={batchId}
-            onChange={(event) => setBatchId(event.target.value)}
-            style={{ paddingLeft: '42px' }}
-            required
-          >
-            {batchOptions.map((batch) => (
-              <option key={batch.id} value={batch.id}>
-                {batch.name || `Batch ${batch.year ?? ''}`}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          aria-label="Batch"
+          selectedKey={batchId || undefined}
+          onSelectionChange={(key) => {
+            setBatchId(String(key ?? ''));
+          }}
+          isRequired
+          placeholder="Select a batch"
+        >
+          <Select.Trigger>
+            <GraduationCap size={18} style={{ color: 'var(--gray)' }} />
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {batchOptions.map((batch) => (
+                <ListBox.Item key={batch.id} id={batch.id}>
+                  {batch.name || `Batch ${batch.year ?? ''}`}
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       </div>
 
       <div className="fg" style={{ marginBottom: '16px' }}>
         <label>Branch</label>
-        <div style={{ position: 'relative' }}>
-          <Building2 size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray)' }} />
-          <select
-            value={branchId}
-            onChange={(event) => setBranchId(event.target.value)}
-            style={{ paddingLeft: '42px' }}
-            required
-          >
-            {branchOptions.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          aria-label="Branch"
+          selectedKey={branchId || undefined}
+          onSelectionChange={(key) => {
+            setBranchId(String(key ?? ''));
+          }}
+          isRequired
+          placeholder="Select a branch"
+        >
+          <Select.Trigger>
+            <Building2 size={18} style={{ color: 'var(--gray)' }} />
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {branchOptions.map((branch) => (
+                <ListBox.Item key={branch.id} id={branch.id}>{branch.name}</ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       </div>
 
       <div className="fg" style={{ marginBottom: '24px' }}>
         <label>Password</label>
-        <div style={{ position: 'relative' }}>
-          <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray)' }} />
-          <input
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Create a password"
-            style={{ paddingLeft: '42px', paddingRight: '42px' }}
-            required
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray)', display: 'flex', alignItems: 'center' }}
-          >
-            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-          </button>
-        </div>
+        <Input
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Create a password"
+          required
+        />
+        <Button isIconOnly type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(!showPassword)}>
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+        </Button>
       </div>
     </AuthCard>
   );

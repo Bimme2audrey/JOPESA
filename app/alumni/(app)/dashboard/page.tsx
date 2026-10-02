@@ -50,7 +50,7 @@ export default function AlumniDashboardPage() {
       try {
         const [eventsPayload, photosPayload, announcementsPayload, documentsPayload, branchesPayload] =
           await Promise.all([
-            apiFetch(`/events?skip=0&take=50&status=PUBLISHED`),
+            apiFetch(`/events?skip=0&take=100&status=PUBLISHED,COMPLETED`),
             apiFetch(`/photos?skip=0&take=100`),
             apiFetch(`/announcements?skip=0&take=20`),
             apiFetch(`/documents?skip=0&take=12`),
@@ -314,7 +314,7 @@ export default function AlumniDashboardPage() {
                   <div style={{ fontSize: 12, color: 'var(--gray)' }}>{doc.category || 'General'}</div>
                 </div>
                 <button
-                  onClick={() => downloadFile(doc.fileUrl, doc.title)}
+                  onClick={() => downloadFile(doc.fileUrl, doc.title, doc.fileType || doc.type)}
                   style={{
                     marginTop: 'auto',
                     display: 'inline-flex',
