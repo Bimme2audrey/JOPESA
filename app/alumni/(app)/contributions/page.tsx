@@ -36,7 +36,7 @@ export default function AlumniContributionsPage() {
       try {
         const payload = await apiFetch<Contribution[]>('/contributions?skip=0&take=100');
         const contributionsList = unwrapList<Contribution>(payload);
-        setContributions(contributionsList);
+        setContributions(contributionsList.filter((contribution) => contribution.type?.toUpperCase() !== 'REGISTRATION_FEE'));
       } catch (err) {
         console.error(err);
         showToast(err instanceof Error ? err.message : 'Unable to load contributions', 'error');
